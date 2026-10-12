@@ -19,6 +19,8 @@ Keep this up to date as things are found or fixed.
 | Bug | Where | Notes |
 |---|---|---|
 | **Game speed tied to frame rate.** Game logic runs at most once per frame: queued game-timer ticks find `g_timerGame == Timer_GameTicks()` and return. Below the game speed's tick rate (60 Hz at normal) the game slows down, e.g. ~70% at 42 fps. Invisible on desktop (always 60 fps+). | `src/gameloop.c` `GameLoop_ProcessGameTimer` | Fix: run each elapsed step before drawing, capped. Changes game feel on slow machines; needs a decision (and care with multiplayer sync). |
+| **Per-frame game-state work in the draw path.** `GUI_DrawInterfaceAndRadar` (now the every-frame draw) still runs `Unit_UpdateMap(1, u)` for every unit, as the original's occasional full refresh did: fog removal in each unit's radius, tile marking, visible-unit counts. 4.9 ms per frame on a 486DX2/66 in Atreides mission 3 (the structure loop was already disabled with `#if 0`). `Map_Client_UpdateFogOfWar` also copies all 4,096 tiles every frame (1.9 ms). Both make game state depend on frame rate. | `src/gui/gui.c` `GUI_DrawInterfaceAndRadar`, `src/map.c` `Map_Client_UpdateFogOfWar` | Run once per game tick, or only for units that moved; needs care with the fog-of-war option (timeouts are refreshed by these calls). |
+| Hint popups redraw and shade the whole screen every frame (~9 ms per frame on a 486DX2/66) while the game is paused behind them. | `GameLoop_Client_Draw`, `MenuBar_DrawInGameOverlay` | Draw once while paused. |
 | `Shape_Width`/`Shape_Height` fallbacks look swapped. | `src/shape.c:36-51` | Not yet confirmed to matter in play. |
 | Unreachable 3440/3840 resolution branches. | `src/gfx.c:61-77` | Dead code; earlier conditions catch those widths. |
 
@@ -30,6 +32,46 @@ Keep this up to date as things are found or fixed.
 | Directory listing and creation helpers (replace `al_make_directory`, `al_*_fs_entry`). | `src/os/fs.c/.h`, `src/file.c`, `src/newui/savemenu.c`, `src/newui/menu.c` | Same: less Allegro 5 outside the platform layer. |
 | Build without ENet: `Net_IsAvailable()`, `src/net/net_none.c` keeps the single-player message path, lobby hides multiplayer. | `src/net/*`, `src/newui/menu_lobby.c` | Useful for minimal or embedded builds. |
 | `InputA5_WaitForEvent` / `InputA5_FlushEvents` (block instead of polling). | `src/input/input_a5.c` | Small; check whether upstream wants it on its own. |
+
+## Feature ideas from other remakes
+
+From a survey of Dune II – The Maker (MIT) and Dune Legacy (GPL-2.0+).
+Both licences are compatible, but both are C++ engines with their own
+structures, so expect to reimplement ideas rather than copy code.
+Starred (★) items are the most promising.
+
+| Idea | Notes | Machines |
+|---|---|---|
+| ★ **Better pathfinding** | Dune Dynasty still uses Dune II's pathfinder (`src/script/unit.c:1229`): head for the target, trace round obstacles both ways, give up after 40 steps, keep 14. Hence units stuck in rock pockets and shuffling along cliffs. Add a breadth-first or A* search as an `enhancement_*` option, writing the same 14-step `route[]`. Limit searches per game tick; share one distance field when a group is sent to one place (D2TM uses a distance field, `cPathFinder.cpp`). Cost on a 486 unmeasured; maps are at most 64×64. | All |
+| ★ **Attack-move** | Move, but stop to fight enemies met on the way. Possibly Shift+click queued orders too. | All |
+| ★ **More skirmish options** | "Surprise me" (D2TM `cSetupSkirmishState.cpp:1247`: random map or seed, houses, opponents, credits, then start). Check which lobby settings Dune Dynasty already has before adding more. | All |
+| ★ **Better guard response** | Guard (mode 1 in `Unit_FindBestTargetUnit`, `src/unit.c:1227`) only targets enemies within the unit's own weapon range of where it stands; Area Guard doubles that around its origin. A guarding unit ignores a neighbour under fire just out of range. Option: also react to attacks on friendly units or buildings within a short radius, then return to its post. | All |
+| ★ **AI that defends itself better, fairly** | Nearby units respond when the base is attacked (Dune Legacy's QuantBot does this). Must use only what a human player could see and do: no map knowledge through fog, no extra resources. | All; heavier versions Pentium |
+| Camera follows selected units | D2TM's T key. Dune Dynasty lists follow/escort as a wish (`enhancement.txt:257`). | All |
+| AI expansion bases | Dune Legacy: AI builds on free rock with escorts. | Pentium |
+| Options for faster CPUs only | 6-player brutal AI and raised unit caps (Pentium); smooth unit rotation, high-resolution overlays, 800x600 and up, MP3 music (Pentium MMX and up). Defaults could follow the CPU detected at start-up. Until the game-speed fix, a heavy option costs game speed, not just frames. | Tiered |
+| Bigger maps | Not practical: 64×64 is built into the 6-bit tile coordinates. | — |
+
+### Save games
+
+Every new feature must keep save games working:
+
+- **Old saves load in new builds, and options can change between saving
+  and loading.** A move in progress is only `targetMove` plus the 14-step
+  `route[]` (saved in the `UNIT` chunk, `src/saveload/unit.c`). A new
+  pathfinder must write the same `route[]` format, so a saved route just
+  continues and the next re-search uses whichever pathfinder is selected.
+- **No changes to existing chunks.** Save files are chunked, and the
+  loader skips chunks it doesn't know (`src/load.c:174`); Dune Dynasty
+  already adds its own (`DDAI`, `DDU2`, ...). Prefer features with no
+  saved state at all: pathfinding, guard response and AI defence can be
+  recomputed after loading.
+- **If a feature needs new saved state** (e.g. attack-move remembering
+  that a unit is attack-moving), put it in a new optional chunk, and
+  make loading without it fall back to plain behaviour (an ordinary
+  move). Older builds then skip the chunk and still load the save.
+- **Multiplayer**: check whether all machines must compute identical
+  paths before changing the pathfinder; not yet checked in the net code.
 
 ## MS-DOS 6.22 as a build target
 
