@@ -219,6 +219,20 @@ static char s_overlay_text[OVERLAY_LINES][80];
 static BITMAP *s_overlay_bmp;
 
 static void VideoDOS_RenderOverlay(void);
+static void VideoDOS_IdleOverlay(void);
+
+/* The mouse cursor is drawn straight onto the screen, not into frames,
+ * so it follows the mouse between frames and partway through drawing
+ * one.  s_front (what is on screen, without the cursor) restores what
+ * was under it.  Without s_front (DD_PRESENT=full) it is drawn into
+ * each frame instead. */
+static BITMAP *s_cursor_bmp;            /* Cursor composed over the background. */
+static bool s_cursor_shown;
+static int s_cursor_rect[4];            /* Shown on screen: x, y, w, h. */
+static int s_cursor_mx, s_cursor_my, s_cursor_sprite;
+static int s_cursor_poll;               /* Blits until the next mouse check. */
+
+static void VideoDOS_UpdateCursor(bool force);
 static PerfSnapshot s_overlay_last;
 static FadeInAux s_fadeInAux;
 
@@ -756,6 +770,12 @@ VideoDOS_Blit(BITMAP *bmp, int sx, int sy, int sw, int sh,
 
 	const Src8 src = VideoDOS_SrcFromBitmap(bmp);
 
+	/* Move the cursor while a slow frame is being drawn. */
+	if (--s_cursor_poll < 0) {
+		s_cursor_poll = 32;
+		VideoDOS_UpdateCursor(false);
+	}
+
 	if (s_time_blits) {
 		const uint64_t t0 = Perf_Now();
 		VideoDOS_BlitSrc(&src, sx, sy, sw, sh, dx, dy, dw, dh, flip, mode, lut, colour);
@@ -975,6 +995,8 @@ VideoA5_Init(void)
 	env = getenv("DD_PRESENT");
 	if (env == NULL || strcmp(env, "full") != 0) {
 		s_front = VideoDOS_CreateBitmap(w, h);
+		const int size = (w >= 640) ? 32 : 16;
+		s_cursor_bmp = create_bitmap_ex(8, size, size);
 	} else {
 		RunLog_Printf("Present: full screen\n");
 	}
@@ -982,6 +1004,7 @@ VideoA5_Init(void)
 	if (getenv("DD_PROFILE") != NULL) {
 		s_profile_start_tick = atol(getenv("DD_PROFILE"));
 		s_profiling = true;
+		g_perf_detail = true;
 	}
 
 	s_overlay = DOS_HasArg("overlay") ? OVERLAY_FULL : OVERLAY_OFF;
@@ -1038,7 +1061,7 @@ VideoA5_Uninit(void)
 	VideoDOS_UninitCPSStore();
 
 	BITMAP **bitmaps[] = {
-		&scratch, &s_front, &s_overlay_bmp, &s_minimap, &interface_texture, &icon_texture,
+		&scratch, &s_front, &s_overlay_bmp, &s_cursor_bmp, &s_minimap, &interface_texture, &icon_texture,
 		&shape_texture, &mentat_texture, &region_texture, &g_dos_backbuffer
 	};
 
@@ -1066,7 +1089,7 @@ VideoA5_ToggleFPS(void)
 	s_overlay = (s_overlay + 1) % OVERLAY_MAX;
 
 	/* Start a fresh measurement interval. */
-	snprintf(s_overlay_text[0], sizeof(s_overlay_text[0]), "...");
+	snprintf(s_overlay_text[0], sizeof(s_overlay_text[0]), "measuring");
 	for (int i = 1; i < OVERLAY_LINES; i++)
 		s_overlay_text[i][0] = '\0';
 	Perf_Snapshot(&s_overlay_last, PERF_WINDOW_OVERLAY);
@@ -1103,6 +1126,9 @@ VideoA5_CaptureScreenshot(void)
 void
 VideoDOS_PollAutomation(void)
 {
+	VideoDOS_IdleOverlay();
+	VideoDOS_UpdateCursor(false);
+
 	static bool s_have_autoinput;
 	static bool s_init;
 
@@ -1168,6 +1194,20 @@ VideoDOS_PollAutomation(void)
 				printf("DD_PROFILE: present %.2f ms/frame %dx%d, %.0f bytes/frame (%.0f%% of the screen, %.1f MB/s)\n",
 					present, g_dos_backbuffer->w, g_dos_backbuffer->h, bytes, 100.0 * bytes / pixels,
 					(present > 0.0) ? bytes / present / 1048.576 : 0.0);
+				static const struct { enum PerfCounter c; const char *name; } parts[] = {
+					{ PERF_DRAW_MENUBAR, "menubar" }, { PERF_DRAW_SIDEBAR, "sidebar" },
+					{ PERF_DRAW_FOGUPDATE, "fog update" }, { PERF_DRAW_TILES, "tiles" },
+					{ PERF_DRAW_UNITS, "units" }, { PERF_DRAW_EXPLOSIONS, "explosions" },
+					{ PERF_DRAW_FOG, "fog edges" }, { PERF_DRAW_MARKERS, "markers" },
+					{ PERF_DRAW_AIR, "air units" }, { PERF_DRAW_UNITMAP, "unit map" },
+					{ PERF_DRAW_MINIMAP, "(minimap)" }, { PERF_DRAW_VIEWPORT, "(viewport)" },
+					{ PERF_DRAW_CHAT, "chat" }, { PERF_DRAW_SCREEN, "(drawscreen)" },
+					{ PERF_DRAW_INTERFACE, "(interface)" },
+				};
+				printf("DD_PROFILE: draw parts, ms/frame:");
+				for (unsigned int i = 0; i < sizeof(parts) / sizeof(parts[0]); i++)
+					printf(" %s %.2f", parts[i].name, PROFILE_MS(parts[i].c));
+				printf("\n");
 				printf("DD_PROFILE: music interrupts %.2f%% of the CPU\n",
 					100.0 * (now.ticks[PERF_IRQ_MUSIC] - s_profile_base.ticks[PERF_IRQ_MUSIC]) / (double)(now.time - s_profile_base.time));
 
@@ -1241,8 +1281,13 @@ VideoDOS_FormatOverlay(const PerfSnapshot *a, const PerfSnapshot *b)
 		snprintf(speed, sizeof(speed), "paused");
 	}
 
-	snprintf(s_overlay_text[0], sizeof(s_overlay_text[0]), "%.0f fps  %.1f ms  worst %.0f  %s",
-		frames / secs, (frames > 0) ? secs * 1000.0 / frames : 0.0, Perf_TicksToMs(b->worst_frame), speed);
+	if (frames == 0) {
+		/* Menus only redraw when something changes. */
+		snprintf(s_overlay_text[0], sizeof(s_overlay_text[0]), "idle  (screen unchanged)");
+	} else {
+		snprintf(s_overlay_text[0], sizeof(s_overlay_text[0]), "%.0f fps  %.1f ms  worst %.0f  %s",
+			frames / secs, secs * 1000.0 / frames, Perf_TicksToMs(b->worst_frame), speed);
+	}
 
 	snprintf(s_overlay_text[1], sizeof(s_overlay_text[1]), "game %.1f  gui %.1f  draw %.1f",
 		OVERLAY_MS(PERF_GAME_TICKS), OVERLAY_MS(PERF_GUI_TICKS), OVERLAY_MS(PERF_DRAW));
@@ -1308,23 +1353,148 @@ VideoDOS_RenderOverlay(void)
 		VideoDOS_OverlayText(s_overlay_bmp, scale, (i * 8 + 1) * scale, scale, text[i]);
 }
 
+/* Where the cursor should be, in screen pixels. */
+static void
+VideoDOS_CursorPosition(int *mx, int *my)
+{
+	if (g_mousePanning) {
+		/* The hardware mouse is re-centred while panning; the game
+		 * keeps the cursor where panning started. */
+		*mx = g_mouseX;
+		*my = g_mouseY;
+	} else {
+		/* Straight from Allegro's mouse interrupt, newer than the last
+		 * input the game processed. */
+		const int pos = mouse_pos;
+		*mx = pos >> 16;
+		*my = pos & 0xFFFF;
+	}
+}
+
+/**
+ * Put the cursor on the screen at the mouse position, restoring what
+ * was under it from s_front.  Unless forced, only when it has moved,
+ * changed shape or been shown or hidden.
+ */
+static void
+VideoDOS_UpdateCursor(bool force)
+{
+	if (s_front == NULL || s_cursor_bmp == NULL)
+		return;
+
+	int mx, my;
+	VideoDOS_CursorPosition(&mx, &my);
+
+	const bool show = !g_mouseHidden;
+	if (!force && show == s_cursor_shown && mx == s_cursor_mx && my == s_cursor_my && g_cursorSpriteID == s_cursor_sprite)
+		return;
+
+	acquire_screen();
+
+	if (s_cursor_shown) {
+		const int *r = s_cursor_rect;
+		blit(s_front, screen, r[0], r[1], r[0], r[1], r[2], r[3]);
+		s_cursor_shown = false;
+	}
+
+	s_cursor_mx = mx;
+	s_cursor_my = my;
+	s_cursor_sprite = g_cursorSpriteID;
+
+	BITMAP *sprite = s_shape[g_cursorSpriteID][HOUSE_HARKONNEN];
+	if (show && sprite != NULL) {
+		const int size = s_cursor_bmp->w;
+		const int x = mx - cursor_focus[g_cursorSpriteID].x * size / 16;
+		const int y = my - cursor_focus[g_cursorSpriteID].y * size / 16;
+		const int x1 = max(0, x);
+		const int y1 = max(0, y);
+		const int x2 = min(s_front->w, x + size);
+		const int y2 = min(s_front->h, y + size);
+
+		if (x1 < x2 && y1 < y2) {
+			/* Background, cursor on top, then one copy to the screen. */
+			blit(s_front, s_cursor_bmp, x1, y1, x1 - x, y1 - y, x2 - x1, y2 - y1);
+			if (size == 16) {
+				masked_blit(sprite, s_cursor_bmp, 0, 0, 0, 0, 16, 16);
+			} else {
+				masked_stretch_blit(sprite, s_cursor_bmp, 0, 0, 16, 16, 0, 0, size, size);
+			}
+			blit(s_cursor_bmp, screen, x1 - x, y1 - y, x1, y1, x2 - x1, y2 - y1);
+
+			s_cursor_rect[0] = x1;
+			s_cursor_rect[1] = y1;
+			s_cursor_rect[2] = x2 - x1;
+			s_cursor_rect[3] = y2 - y1;
+			s_cursor_shown = true;
+		}
+	}
+
+	release_screen();
+}
+
+/* New numbers twice a second.  Returns true if the text was redone. */
+static bool
+VideoDOS_UpdateOverlay(void)
+{
+	const uint64_t now = Perf_Now();
+	if (s_overlay_bmp != NULL && now - s_overlay_last.time < PERF_TICKS_PER_SECOND / 2)
+		return false;
+
+	PerfSnapshot snap;
+	Perf_Snapshot(&snap, PERF_WINDOW_OVERLAY);
+
+	if (snap.time > s_overlay_last.time)
+		VideoDOS_FormatOverlay(&s_overlay_last, &snap);
+	s_overlay_last = snap;
+
+	VideoDOS_RenderOverlay();
+	return true;
+}
+
+/* While waiting for the next tick: menus only redraw when something
+ * changes, so put fresh numbers straight on the screen. */
+static void
+VideoDOS_IdleOverlay(void)
+{
+	static int l_shown_w, l_shown_h;
+
+	if (s_overlay == OVERLAY_OFF || g_dos_backbuffer == NULL || !VideoDOS_UpdateOverlay() || s_overlay_bmp == NULL)
+		return;
+
+	const int y = (int)g_screenDiv[SCREENDIV_VIEWPORT].y;
+	const int w = s_overlay_bmp->w;
+	const int h = s_overlay_bmp->h;
+
+	acquire_screen();
+	/* Black out what is left of a wider or taller box. */
+	if (l_shown_w > w)
+		rectfill(screen, w, y, l_shown_w - 1, y + max(h, l_shown_h) - 1, 0);
+	if (l_shown_h > h)
+		rectfill(screen, 0, y + h, w - 1, y + l_shown_h - 1, 0);
+	blit(s_overlay_bmp, screen, 0, 0, 0, y, w, h);
+	release_screen();
+
+	/* Keep the changed-span present in step with the screen. */
+	if (s_front != NULL) {
+		if (l_shown_w > w)
+			rectfill(s_front, w, y, l_shown_w - 1, y + max(h, l_shown_h) - 1, 0);
+		if (l_shown_h > h)
+			rectfill(s_front, 0, y + h, w - 1, y + l_shown_h - 1, 0);
+		blit(s_overlay_bmp, s_front, 0, 0, 0, y, w, h);
+	}
+
+	l_shown_w = w;
+	l_shown_h = h;
+
+	VideoDOS_UpdateCursor(true);
+}
+
 /* A solid box, copied each frame: cheaper than shading and drawing
  * glyphs every frame, which cost a DX4/100 about 2 ms. */
 static void
 VideoDOS_DrawOverlay(void)
 {
-	/* New numbers twice a second. */
-	const uint64_t now = Perf_Now();
-	if (s_overlay_bmp == NULL || now - s_overlay_last.time >= PERF_TICKS_PER_SECOND / 2) {
-		PerfSnapshot snap;
-		Perf_Snapshot(&snap, PERF_WINDOW_OVERLAY);
-
-		if (snap.time > s_overlay_last.time && snap.frames != s_overlay_last.frames)
-			VideoDOS_FormatOverlay(&s_overlay_last, &snap);
-		s_overlay_last = snap;
-
-		VideoDOS_RenderOverlay();
-	}
+	VideoDOS_UpdateOverlay();
 
 	if (s_overlay_bmp == NULL)
 		return;
@@ -1460,8 +1630,9 @@ VideoA5_Tick(void)
 	if (s_overlay != OVERLAY_OFF)
 		VideoDOS_DrawOverlay();
 
-	/* Software mouse cursor, double sized on 640x400 and above. */
-	if (!g_mouseHidden) {
+	/* Software mouse cursor, double sized on 640x400 and above.  With a
+	 * front copy it goes straight to the screen after the present. */
+	if (!g_mouseHidden && s_front == NULL) {
 		const int size = (TRUE_DISPLAY_WIDTH >= 640) ? 32 : 16;
 		/* Draw at the hardware mouse position in screen pixels.  The
 		 * game's g_mouseX/Y are in screen coordinates in game but menu
@@ -1493,6 +1664,7 @@ VideoA5_Tick(void)
 
 	const uint64_t t0 = Perf_Now();
 	const uint32_t bytes = VideoDOS_Present();
+	VideoDOS_UpdateCursor(true);
 	Perf_Add(PERF_PRESENT, (uint32_t)(Perf_Now() - t0));
 	Perf_AddFrame(bytes);
 

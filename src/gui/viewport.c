@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #include "gui.h"
+#include "../timer/perf.h"
 #include "widget.h"
 #include "../common_a5.h"
 #include "../enhancement.h"
@@ -32,8 +33,11 @@ void GUI_Widget_Viewport_Draw(void)
 	const uint16 oldValue_07AE_0000 = Widget_SetCurrentWidget(2);
 	PoolFindStruct find;
 
+	PERF_SECTION_BEGIN(tiles);
 	Viewport_DrawTiles();
+	PERF_SECTION_END(tiles, PERF_DRAW_TILES);
 
+	PERF_SECTION_BEGIN(units);
 	for (const Unit *u = Unit_FindFirst(&find, HOUSE_INVALID, UNIT_SANDWORM);
 			u != NULL;
 			u = Unit_FindNext(&find)) {
@@ -62,10 +66,17 @@ void GUI_Widget_Viewport_Draw(void)
 
 		Viewport_DrawUnit(u, 0, 0, false);
 	}
+	PERF_SECTION_END(units, PERF_DRAW_UNITS);
 
+	PERF_SECTION_BEGIN(explosions);
 	Explosion_Draw();
-	Viewport_DrawTileFog();
+	PERF_SECTION_END(explosions, PERF_DRAW_EXPLOSIONS);
 
+	PERF_SECTION_BEGIN(fog);
+	Viewport_DrawTileFog();
+	PERF_SECTION_END(fog, PERF_DRAW_FOG);
+
+	PERF_SECTION_BEGIN(markers);
 	Viewport_DrawRallyPoint();
 	Viewport_DrawMovementIndicator();	
 	Viewport_DrawSelectionHealthBars();
@@ -87,12 +98,16 @@ void GUI_Widget_Viewport_Draw(void)
 		}
 	}
 
+	PERF_SECTION_END(markers, PERF_DRAW_MARKERS);
+
+	PERF_SECTION_BEGIN(air);
 	for (const Unit *u = Unit_FindFirst(&find, HOUSE_INVALID, UNIT_INVALID);
 			u != NULL;
 			u = Unit_FindNext(&find)) {
 		if (u->o.index <= 15)
 			Viewport_DrawAirUnit(u);
 	}
+	PERF_SECTION_END(air, PERF_DRAW_AIR);
 
 	if ((g_viewportMessageCounter & 1) != 0 && g_viewportMessageText != NULL) {
 		const enum ScreenDivID old_div = A5_SaveTransform();

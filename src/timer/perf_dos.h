@@ -23,6 +23,23 @@ enum PerfCounter {
 	/* Our interrupts. */
 	PERF_IRQ_MUSIC,         /* AdLib and MIDI music drivers. */
 
+	/* Parts of PERF_DRAW, timed only for DD_PROFILE (see perf.h). */
+	PERF_DRAW_MENUBAR,
+	PERF_DRAW_SIDEBAR,
+	PERF_DRAW_FOGUPDATE,    /* Map_Client_UpdateFogOfWar. */
+	PERF_DRAW_TILES,
+	PERF_DRAW_UNITS,
+	PERF_DRAW_EXPLOSIONS,
+	PERF_DRAW_FOG,          /* Shroud and fog edges. */
+	PERF_DRAW_MARKERS,      /* Rally points, health bars, selection. */
+	PERF_DRAW_AIR,
+	PERF_DRAW_UNITMAP,      /* Unit_UpdateMap after drawing. */
+	PERF_DRAW_MINIMAP,      /* Part of PERF_DRAW_MENUBAR. */
+	PERF_DRAW_VIEWPORT,     /* Whole viewport: tiles .. air units. */
+	PERF_DRAW_CHAT,
+	PERF_DRAW_SCREEN,       /* GUI_DrawScreen: fog update + viewport. */
+	PERF_DRAW_INTERFACE,    /* GUI_DrawInterfaceAndRadar, everything. */
+
 	PERF_COUNTERS
 };
 
@@ -59,6 +76,9 @@ extern void Perf_AddGameTick(void);
 extern void Perf_Snapshot(PerfSnapshot *snap, enum PerfWindow window);
 
 extern double Perf_TicksToMs(uint64_t ticks);
+
+/* Fine-grained draw timing is on (DD_PROFILE). */
+extern bool g_perf_detail;
 
 /* The CPU found at start-up. */
 extern const char *Perf_CPUName(void);
