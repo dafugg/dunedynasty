@@ -68,6 +68,10 @@ if(MSDOS)
 	# Allegro 4.2 headers use GNU89 "extern inline" semantics.
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fgnu89-inline")
 	list(APPEND OPTIONAL_LIBRARIES "${ALLEGRO4_DIR}/lib/djgpp/liballeg.a" m)
+
+	# Directories whose DUNEDYN/ is refreshed after every build (e.g. a
+	# share the test machines copy from). Empty: package only on demand.
+	set(DOS_PUBLISH_DIRS "" CACHE STRING "Semicolon-separated directories to update with the packaged build")
 else(MSDOS)
 
 include(FindPkgConfig)
@@ -175,6 +179,13 @@ include_directories("include" "${PROJECT_BINARY_DIR}/include")
 if(MSDOS)
 	add_executable(dunedynasty ${DUNEDYNASTY_SRC_FILES})
 	set_target_properties(dunedynasty PROPERTIES OUTPUT_NAME "dunedyn")
+	if(DOS_PUBLISH_DIRS)
+		add_custom_command(TARGET dunedynasty POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E env EXE=$<TARGET_FILE_DIR:dunedynasty>/dunedyn.exe
+				sh ${CMAKE_SOURCE_DIR}/scripts/dos/package.sh ${DOS_PUBLISH_DIRS}
+			COMMENT "Publishing DUNEDYN to ${DOS_PUBLISH_DIRS}"
+			VERBATIM)
+	endif()
 else(MSDOS)
 	add_executable(dunedynasty WIN32
 		${DUNEDYNASTY_SRC_FILES} ${CMAKE_SOURCE_DIR}/src/icon/icon.rc)
