@@ -1,10 +1,15 @@
 /* config_a5.c */
 
 #include <assert.h>
+#ifndef __DJGPP__
 #include <allegro5/allegro.h>
+#endif
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "buildcfg.h"
+#include "os/cfgfile.h"
+#include "os/fs.h"
 #include "os/math.h"
 #include "os/strings.h"
 #include "errorlog.h"
@@ -23,7 +28,11 @@
 #include "video/video.h"
 #include "video/video_a5.h"
 
+#ifdef __DJGPP__
+#define CONFIG_FILENAME "DUNEDYN.CFG"
+#else
 #define CONFIG_FILENAME "dunedynasty.cfg"
+#endif
 
 typedef struct GameOption {
 	const char *section;
@@ -71,7 +80,7 @@ typedef struct GameOption {
 	} d;
 } GameOption;
 
-static ALLEGRO_CONFIG *s_configFile;
+static CfgFile *s_configFile;
 
 GameCfg g_gameConfig = {
 #ifdef __PANDORA__
@@ -132,6 +141,10 @@ static const GameOption s_game_option[] = {
 	{ "audio",  "opl_mame",         CONFIG_BOOL,    .d._bool = &g_opl_mame },
 	{ "audio",  "sound_font",       CONFIG_STRING,  .d._string = sound_font_path },
 	{ "audio",  "midi_device_id",   CONFIG_INT,  	.d._int = &g_midi_device_id },
+#ifdef __DJGPP__
+	{ "audio",  "voices",           CONFIG_INT_1_16,	.d._int = &g_dos_sound_voices },
+	{ "audio",  "mixer_quality",    CONFIG_INT_0_4,	.d._int = &g_dos_mixer_quality },
+#endif
 	{ "audio",  "midi_format",     	CONFIG_MIDI_FORMAT,  	.d._midi_format = &g_midi_format },
 	{ "audio",  "disable_attack_music",     CONFIG_BOOL,    .d._bool = &g_disable_attack_music },
 
@@ -190,13 +203,13 @@ static const GameOption s_game_option[] = {
 
 /*--------------------------------------------------------------*/
 
-static ALLEGRO_CONFIG *
+static CfgFile *
 Config_CreateConfigFile(void)
 {
-	ALLEGRO_CONFIG *config = al_create_config();
+	CfgFile *config = CfgFile_Create();
 
 	if (config != NULL) {
-		al_add_config_comment(config, NULL, "# Dune Dynasty config file");
+		CfgFile_AddComment(config, NULL, "# Dune Dynasty config file");
 	}
 
 	return config;
@@ -237,7 +250,7 @@ Config_GetCampaign(void)
 		return;
 
 	/* This needs to be read after all the campaigns have been scanned. */
-	const char *str = al_get_config_value(s_configFile, "game", "campaign");
+	const char *str = CfgFile_Get(s_configFile, "game", "campaign");
 	for (int i = 0; i < g_campaign_total; i++) {
 		Campaign *camp = &g_campaign_list[i];
 
@@ -255,7 +268,7 @@ Config_GetCampaign(void)
 				continue;
 
 			snprintf(key, sizeof(key), "%s%s", camp->dir_name, g_table_houseInfo[houseID].name);
-			const char *value = al_get_config_value(s_configFile, "completion", key);
+			const char *value = CfgFile_Get(s_configFile, "completion", key);
 
 			if (value != NULL)
 				sscanf(value, "%u", &camp->completion[h]);
@@ -296,20 +309,20 @@ Config_SaveCampaignCompletion(void)
 
 		snprintf(key, sizeof(key), "%s%s", camp->dir_name, g_table_houseInfo[houseID].name);
 		snprintf(value, sizeof(value), "%u", camp->completion[h]);
-		al_set_config_value(s_configFile, "completion", key, value);
+		CfgFile_Set(s_configFile, "completion", key, value);
 	}
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-truncation"
 	snprintf(filename, sizeof(filename), "%s/%s", g_personal_data_dir, CONFIG_FILENAME);
 #pragma GCC diagnostic pop
-	al_save_config_file(filename, s_configFile);
+	CfgFile_Save(filename, s_configFile);
 }
 
 static void
-Config_SetCampaign(ALLEGRO_CONFIG *config, const char *section, const char *key, int value)
+Config_SetCampaign(CfgFile *config, const char *section, const char *key, int value)
 {
-	al_set_config_value(config, section, key, g_campaign_list[value].dir_name);
+	CfgFile_Set(config, section, key, g_campaign_list[value].dir_name);
 }
 
 static void
@@ -319,12 +332,12 @@ Config_GetFloat(const char *str, float min_val, float max_val, float *value)
 }
 
 static void
-Config_SetFloat(ALLEGRO_CONFIG *config, const char *section, const char *key, float value)
+Config_SetFloat(CfgFile *config, const char *section, const char *key, float value)
 {
 	char str[16];
 
 	snprintf(str, sizeof(str), "%.2f", value);
-	al_set_config_value(config, section, key, str);
+	CfgFile_Set(config, section, key, str);
 }
 
 static void
@@ -341,7 +354,7 @@ Config_GetGraphicsDriver(const char *str, enum GraphicsDriver *value)
 }
 
 static void
-Config_SetGraphicsDriver(ALLEGRO_CONFIG *config, const char *section, const char *key, enum GraphicsDriver graphics_driver)
+Config_SetGraphicsDriver(CfgFile *config, const char *section, const char *key, enum GraphicsDriver graphics_driver)
 {
 	const char *str = "opengl";
 
@@ -356,7 +369,7 @@ Config_SetGraphicsDriver(ALLEGRO_CONFIG *config, const char *section, const char
 			break;
 	}
 
-	al_set_config_value(config, section, key, str);
+	CfgFile_Set(config, section, key, str);
 }
 
 static void
@@ -370,14 +383,14 @@ Config_GetHealthBars(const char *str, enum HealthBarMode *value)
 }
 
 static void
-Config_SetHealthBars(ALLEGRO_CONFIG *config, const char *section, const char *key, enum HealthBarMode value)
+Config_SetHealthBars(CfgFile *config, const char *section, const char *key, enum HealthBarMode value)
 {
 	const char *str[] = { "none", "selected", "all" };
 
 	if (value > HEALTH_BAR_ALL_UNITS)
 		value = HEALTH_BAR_DISABLE;
 
-	al_set_config_value(config, section, key, str[value]);
+	CfgFile_Set(config, section, key, str[value]);
 }
 
 static void
@@ -387,12 +400,12 @@ Config_GetInt(const char *str, int min_val, int max_val, int *value)
 }
 
 static void
-Config_SetInt(ALLEGRO_CONFIG *config, const char *section, const char *key, int value)
+Config_SetInt(CfgFile *config, const char *section, const char *key, int value)
 {
 	char str[16];
 
 	snprintf(str, sizeof(str), "%d", value);
-	al_set_config_value(config, section, key, str);
+	CfgFile_Set(config, section, key, str);
 }
 
 static void
@@ -409,12 +422,12 @@ Config_GetLanguage(const char *str, enum Language *value)
 }
 
 static void
-Config_SetLanguage(ALLEGRO_CONFIG *config, const char *section, const char *key, enum Language value)
+Config_SetLanguage(CfgFile *config, const char *section, const char *key, enum Language value)
 {
 	if (value >= LANGUAGE_MAX)
 		value = LANGUAGE_ENGLISH;
 
-	al_set_config_value(config, section, key, g_table_languageInfo[value].name);
+	CfgFile_Set(config, section, key, g_table_languageInfo[value].name);
 }
 
 static void
@@ -431,20 +444,20 @@ Config_GetMusicPack(const char *str, enum MusicSet *value)
 }
 
 static void
-Config_SetMusicPack(ALLEGRO_CONFIG *config, const char *section, const char *key, enum MusicSet value)
+Config_SetMusicPack(CfgFile *config, const char *section, const char *key, enum MusicSet value)
 {
 	if (value >= NUM_MUSIC_SETS)
 		value = MUSICSET_DUNE2_ADLIB;
 
-	al_set_config_value(config, section, key, g_table_music_set[value].prefix);
+	CfgFile_Set(config, section, key, g_table_music_set[value].prefix);
 }
 
 static void
-Config_SetSmoothAnimation(ALLEGRO_CONFIG *config, const char *section, const char *key, enum SmoothUnitAnimationMode value)
+Config_SetSmoothAnimation(CfgFile *config, const char *section, const char *key, enum SmoothUnitAnimationMode value)
 {
 	const bool enable = (value != SMOOTH_UNIT_ANIMATION_DISABLE);
 
-	al_set_config_value(config, section, key, enable ? "1" : "0");
+	CfgFile_Set(config, section, key, enable ? "1" : "0");
 }
 
 static void
@@ -468,14 +481,14 @@ Config_GetSoundEffects(const char *str, enum SoundEffectSources *value)
 }
 
 static void
-Config_SetSoundEffects(ALLEGRO_CONFIG *config, const char *section, const char *key, enum SoundEffectSources value)
+Config_SetSoundEffects(CfgFile *config, const char *section, const char *key, enum SoundEffectSources value)
 {
 	const char *str[] = { "none", "synth", "digital", "both" };
 
 	if (value > SOUNDEFFECTS_SYNTH_AND_SAMPLES)
 		value = SOUNDEFFECTS_SYNTH_AND_SAMPLES;
 
-	al_set_config_value(config, section, key, str[value]);
+	CfgFile_Set(config, section, key, str[value]);
 }
 
 static void
@@ -513,43 +526,43 @@ Config_GetWindowMode(const char *str, enum WindowMode *value)
 }
 
 static void
-Config_SetAspectCorrection(ALLEGRO_CONFIG *config, const char *section, const char *key, enum AspectRatioCorrection value)
+Config_SetAspectCorrection(CfgFile *config, const char *section, const char *key, enum AspectRatioCorrection value)
 {
 	const char *str[] = { "none", "menu", "full", "auto" };
 
 	if (value > ASPECT_RATIO_CORRECTION_AUTO)
 		value = ASPECT_RATIO_CORRECTION_AUTO;
 
-	al_set_config_value(config, section, key, str[value]);
+	CfgFile_Set(config, section, key, str[value]);
 }
 
 static void
-Config_SetMidiFormat(ALLEGRO_CONFIG *config, const char *section, const char *key, enum MidiFormat value)
+Config_SetMidiFormat(CfgFile *config, const char *section, const char *key, enum MidiFormat value)
 {
 	const char *str[] = { "pcs", "tan", "gm", "mt32" };
 
 	if (value >= NUM_MIDI_FORMATS)
 		value = MIDI_FORMAT_GM;
 
-	al_set_config_value(config, section, key, str[value]);
+	CfgFile_Set(config, section, key, str[value]);
 }
 
 static void
-Config_SetWindowMode(ALLEGRO_CONFIG *config, const char *section, const char *key, enum WindowMode value)
+Config_SetWindowMode(CfgFile *config, const char *section, const char *key, enum WindowMode value)
 {
 	const char *str[] = { "windowed", "fullscreen", "fullscreenwindow" };
 
 	if (value > WM_FULLSCREEN_WINDOW)
 		value = WM_WINDOWED;
 
-	al_set_config_value(config, section, key, str[value]);
+	CfgFile_Set(config, section, key, str[value]);
 }
 
 
 static void
-Config_GetMusicVolume(ALLEGRO_CONFIG *config, const char *category, const char *key, MusicInfo *ext)
+Config_GetMusicVolume(CfgFile *config, const char *category, const char *key, MusicInfo *ext)
 {
-	const char *str = al_get_config_value(config, category, key);
+	const char *str = CfgFile_Get(config, category, key);
 	if (str == NULL)
 		return;
 
@@ -565,6 +578,56 @@ Config_GetMusicVolume(ALLEGRO_CONFIG *config, const char *category, const char *
 
 /*--------------------------------------------------------------*/
 
+#ifdef __DJGPP__
+extern char **__crt0_argv;
+
+/* MS-DOS: data and personal files live next to DUNEDYN.EXE. */
+void
+ConfigA5_InitDataDirectoriesAndLoadConfigFile(void)
+{
+	char filename[PATH_MAX];
+	FILE *fp;
+
+	snprintf(g_dune_data_dir, sizeof(g_dune_data_dir), "%s", __crt0_argv[0]);
+	for (char *c = g_dune_data_dir; *c != '\0'; c++) {
+		if (*c == '\\')
+			*c = '/';
+	}
+
+	char *slash = strrchr(g_dune_data_dir, '/');
+	if (slash != NULL) {
+		slash[1] = '\0';
+	} else {
+		snprintf(g_dune_data_dir, sizeof(g_dune_data_dir), "./");
+	}
+
+	snprintf(g_personal_data_dir, sizeof(g_personal_data_dir), "%s", g_dune_data_dir);
+
+	fp = File_Open_CaseInsensitive(SEARCHDIR_GLOBAL_DATA_DIR, "DUNE.PAK", "rb");
+	if (fp == NULL) {
+		Error(
+			"--------------------------\n"
+			"ERROR: Dune II data files not found.\n"
+			"\n"
+			"Copy the Dune II 1.07 data files (DUNE.PAK etc.) into:\n"
+			"\n"
+			"- %sDATA\n"
+			"\n",
+			g_dune_data_dir
+		);
+		exit(1);
+	}
+	fclose(fp);
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+	snprintf(filename, sizeof(filename), "%s%s", g_personal_data_dir, CONFIG_FILENAME);
+#pragma GCC diagnostic pop
+	s_configFile = CfgFile_Load(filename);
+
+	fprintf(stdout, "Data directory: %s\n", g_dune_data_dir);
+}
+#else /* __DJGPP__ */
 void
 ConfigA5_InitDataDirectoriesAndLoadConfigFile(void)
 {
@@ -616,17 +679,17 @@ ConfigA5_InitDataDirectoriesAndLoadConfigFile(void)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-truncation"
 	snprintf(filename, sizeof(filename), "%s/%s", g_personal_data_dir, CONFIG_FILENAME);
-	s_configFile = al_load_config_file(filename);
+	s_configFile = CfgFile_Load(filename);
 
 	/* 2. Try ~/.config/dunedynasty/dunedynasty.cfg. */
 	if (s_configFile == NULL) {
 		snprintf(g_personal_data_dir, sizeof(g_personal_data_dir)-1, "%s", user_settings_cstr);
 		snprintf(filename, sizeof(filename), "%s/%s", g_personal_data_dir, CONFIG_FILENAME);
-		s_configFile = al_load_config_file(filename);
+		s_configFile = CfgFile_Load(filename);
 	}
 #pragma GCC diagnostic pop
 
-	if (!al_make_directory(g_personal_data_dir)) {
+	if (!FS_MakeDirectory(g_personal_data_dir)) {
 		fprintf(stderr, "Could not create %s!\n", filename);
 	}
 
@@ -654,6 +717,109 @@ ConfigA5_InitDataDirectoriesAndLoadConfigFile(void)
 	fprintf(stdout, "Resource data directory: %s\n", g_dune_data_dir);
 	fprintf(stdout, "Personal data directory: %s\n", g_personal_data_dir);
 }
+#endif /* __DJGPP__ */
+
+#ifdef __DJGPP__
+#include "common_dos.h"
+
+/* Command line overrides (-res, -scale, -voices, -quality, -allaudio)
+ * apply to this run only: the saved values are swapped back in while
+ * saving. */
+static struct {
+	bool active;
+	DisplayMode displayMode;
+	float scale[3];
+	int voices;
+	int quality;
+	bool music;
+	enum SoundEffectSources effects;
+	bool speech;
+} s_saved_options;
+
+static const enum ScreenDivID s_scaled_divs[3] = {
+	SCREENDIV_MENUBAR, SCREENDIV_SIDEBAR, SCREENDIV_VIEWPORT
+};
+
+static void
+Config_SwapCommandLineOptions(void)
+{
+	DisplayMode mode = g_gameConfig.displayMode;
+	g_gameConfig.displayMode = s_saved_options.displayMode;
+	s_saved_options.displayMode = mode;
+
+	for (int i = 0; i < 3; i++) {
+		const float scale = g_screenDiv[s_scaled_divs[i]].scalex;
+		g_screenDiv[s_scaled_divs[i]].scalex = s_saved_options.scale[i];
+		s_saved_options.scale[i] = scale;
+	}
+
+	int v = g_dos_sound_voices;
+	g_dos_sound_voices = s_saved_options.voices;
+	s_saved_options.voices = v;
+
+	v = g_dos_mixer_quality;
+	g_dos_mixer_quality = s_saved_options.quality;
+	s_saved_options.quality = v;
+
+	bool b = g_enable_music;
+	g_enable_music = s_saved_options.music;
+	s_saved_options.music = b;
+
+	const enum SoundEffectSources e = g_enable_sound_effects;
+	g_enable_sound_effects = s_saved_options.effects;
+	s_saved_options.effects = e;
+
+	b = g_enable_voices;
+	g_enable_voices = s_saved_options.speech;
+	s_saved_options.speech = b;
+}
+
+static void
+Config_ApplyCommandLine(void)
+{
+	s_saved_options.displayMode = g_gameConfig.displayMode;
+	for (int i = 0; i < 3; i++)
+		s_saved_options.scale[i] = g_screenDiv[s_scaled_divs[i]].scalex;
+	s_saved_options.voices = g_dos_sound_voices;
+	s_saved_options.quality = g_dos_mixer_quality;
+	s_saved_options.music = g_enable_music;
+	s_saved_options.effects = g_enable_sound_effects;
+	s_saved_options.speech = g_enable_voices;
+	s_saved_options.active = true;
+
+	/* -allaudio: music, synth and digital effects, and speech. */
+	if (DOS_HasArg("allaudio")) {
+		g_enable_music = true;
+		g_enable_sound_effects = SOUNDEFFECTS_SYNTH_AND_SAMPLES;
+		g_enable_voices = true;
+	}
+
+	const char *arg = DOS_ArgValue("res");
+	int w, h;
+	if (arg != NULL && sscanf(arg, "%dx%d", &w, &h) == 2 && w > 0 && h > 0) {
+		g_gameConfig.displayMode.width = w;
+		g_gameConfig.displayMode.height = h;
+	}
+
+	arg = DOS_ArgValue("scale");
+	if (arg != NULL) {
+		const float scale = clamp(1.0f, (float)atof(arg), 8.0f);
+		for (int i = 0; i < 3; i++)
+			g_screenDiv[s_scaled_divs[i]].scalex = scale;
+	}
+
+	arg = DOS_ArgValue("voices");
+	if (arg != NULL)
+		g_dos_sound_voices = clamp(1, atoi(arg), 16);
+
+	arg = DOS_ArgValue("quality");
+	if (arg != NULL)
+		g_dos_mixer_quality = clamp(0, atoi(arg), 3);
+
+	TRUE_DISPLAY_WIDTH = g_gameConfig.displayMode.width;
+	TRUE_DISPLAY_HEIGHT = g_gameConfig.displayMode.height;
+}
+#endif /* __DJGPP__ */
 
 void
 GameOptions_Load(void)
@@ -670,13 +836,16 @@ GameOptions_Load(void)
 		TRUE_DISPLAY_WIDTH = g_gameConfig.displayMode.width;
 		TRUE_DISPLAY_HEIGHT = g_gameConfig.displayMode.height;
 		GFX_InitDefaultViewportScales(true);
+#ifdef __DJGPP__
+		Config_ApplyCommandLine();
+#endif
 		return;
 	}
 
 	for (int i = 0; s_game_option[i].key != NULL; i++) {
 		const GameOption *opt = &s_game_option[i];
 
-		const char *str = al_get_config_value(s_configFile, opt->section, opt->key);
+		const char *str = CfgFile_Get(s_configFile, opt->section, opt->key);
 		if (str == NULL)
 			continue;
 
@@ -771,7 +940,7 @@ GameOptions_Load(void)
 
 	/* Music configuration. */
 	for (enum MusicSet music_set = MUSICSET_DUNE2_ADLIB; music_set < NUM_MUSIC_SETS; music_set++) {
-		ALLEGRO_CONFIG *config = NULL;
+		CfgFile *config = NULL;
 		char category[PATH_MAX];
 
 #pragma GCC diagnostic push
@@ -780,14 +949,14 @@ GameOptions_Load(void)
 			char filename[PATH_MAX];
 
 			snprintf(filename, sizeof(filename), "%smusic/music.cfg", g_dune_data_dir);
-			config = al_load_config_file(filename);
+			config = CfgFile_Load(filename);
 
 			snprintf(category, sizeof(category), "%s", g_table_music_set[music_set].prefix);
 		} else if (g_table_music_set[music_set].enable || music_set == default_music_pack) {
 			char filename[PATH_MAX];
 
 			snprintf(filename, sizeof(filename), "%smusic/%s/volume.cfg", g_dune_data_dir, g_table_music_set[music_set].prefix);
-			config = al_load_config_file(filename);
+			config = CfgFile_Load(filename);
 		}
 #pragma GCC diagnostic pop
 
@@ -810,7 +979,7 @@ GameOptions_Load(void)
 					char key[1024];
 					snprintf(key, sizeof(key), "%s/%d", m->filename, m->track);
 
-					const char *str = al_get_config_value(config, category, key);
+					const char *str = CfgFile_Get(config, category, key);
 					bool want = (m->enable & MUSIC_WANT);
 					String_GetBool(str, &want);
 
@@ -829,16 +998,26 @@ GameOptions_Load(void)
 		}
 
 		if (config != NULL && config != s_configFile)
-			al_destroy_config(config);
+			CfgFile_Destroy(config);
 	}
 	TRUE_DISPLAY_WIDTH = g_gameConfig.displayMode.width;
 	TRUE_DISPLAY_HEIGHT = g_gameConfig.displayMode.height;
+
+#ifdef __DJGPP__
+	Config_ApplyCommandLine();
+#endif
 }
 
 void
 GameOptions_Save(void)
 {
 	char filename[PATH_MAX];
+
+#ifdef __DJGPP__
+	/* Write the saved settings, not this run's command line overrides. */
+	if (s_saved_options.active)
+		Config_SwapCommandLineOptions();
+#endif
 
 	if (s_configFile == NULL) {
 		s_configFile = Config_CreateConfigFile();
@@ -851,7 +1030,7 @@ GameOptions_Save(void)
 
 		switch (opt->type) {
 			case CONFIG_BOOL:
-				al_set_config_value(s_configFile, opt->section, opt->key, *(opt->d._bool) ? "1" : "0");
+				CfgFile_Set(s_configFile, opt->section, opt->key, *(opt->d._bool) ? "1" : "0");
 				break;
 
 			case CONFIG_CAMPAIGN:
@@ -881,7 +1060,7 @@ GameOptions_Save(void)
 			case CONFIG_STRING:
 			case CONFIG_STRING_NAME:
 			case CONFIG_STRING_PORT:
-				al_set_config_value(s_configFile, opt->section, opt->key, opt->d._string);
+				CfgFile_Set(s_configFile, opt->section, opt->key, opt->d._string);
 				break;
 
 			case CONFIG_LANGUAGE:
@@ -922,5 +1101,10 @@ GameOptions_Save(void)
 #pragma GCC diagnostic ignored "-Wformat-truncation"
 	snprintf(filename, sizeof(filename), "%s/%s", g_personal_data_dir, CONFIG_FILENAME);
 #pragma GCC diagnostic pop
-	al_save_config_file(filename, s_configFile);
+	CfgFile_Save(filename, s_configFile);
+
+#ifdef __DJGPP__
+	if (s_saved_options.active)
+		Config_SwapCommandLineOptions();
+#endif
 }

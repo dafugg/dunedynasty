@@ -35,6 +35,13 @@ extern bool g_opl_mame;
 extern char sound_font_path[1024];
 extern int g_midi_device_id;
 extern enum MidiFormat g_midi_format;
+
+#ifdef __DJGPP__
+/* Sound Blaster voices mixed in software (1 to 12): [audio] voices. */
+extern int g_dos_sound_voices;
+/* Allegro mixer quality 0 (fastest) to 2 (best), 3 = automatic. */
+extern int g_dos_mixer_quality;
+#endif
 extern enum MusicSet default_music_pack;
 extern char music_message[128];
 
