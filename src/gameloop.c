@@ -6,6 +6,7 @@
 #include "os/math.h"
 
 #include "gameloop.h"
+#include "timer/perf.h"
 
 #ifdef __DJGPP__
 #include "timer/perf_dos.h"
@@ -402,7 +403,9 @@ GameLoop_Client_Draw(void)
 
 	if (g_gameOverlay == GAMEOVERLAY_NONE) {
 		GUI_DrawInterfaceAndRadar();
+		PERF_SECTION_BEGIN(chat);
 		ChatBox_DrawInGame(g_chat_buf);
+		PERF_SECTION_END(chat, PERF_DRAW_CHAT);
 	} else if (g_gameOverlay == GAMEOVERLAY_HINT
 	        || g_gameOverlay == GAMEOVERLAY_WIN
 	        || g_gameOverlay == GAMEOVERLAY_LOSE) {
