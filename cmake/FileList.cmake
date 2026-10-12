@@ -1,18 +1,12 @@
 set(DUNEDYNASTY_SRC_FILES
 	src/ai.c
 	src/animation.c
-	src/audio/adl/fmopl.cpp
-	src/audio/adl/opl_dosbox.cpp
-	src/audio/adl/opl_mame.cpp
-	src/audio/adl/sound_adlib.cpp
 	src/audio/audio.c
-	src/audio/audio_a5.cpp
 	src/audio/mt32mpu.c
 	src/binheap.c
 	src/buildqueue.c
 	src/codec/format40.c
 	src/codec/format80.c
-	src/common_a5.c
 	src/config_a5.c
 	src/crashlog/crashlog_none.c
 	src/cutscene.c
@@ -30,7 +24,6 @@ set(DUNEDYNASTY_SRC_FILES
 	src/gui/widget_draw.c
 	src/house.c
 	src/ini.c
-	src/input/input_a5.c
 	src/input/input_dd.c
 	src/input/mouse_dd.c
 	src/load.c
@@ -41,7 +34,6 @@ set(DUNEDYNASTY_SRC_FILES
 	src/mods/skirmish.c
 	src/net/client.c
 	src/net/message.c
-	src/net/net_enet.c
 	src/net/server.c
 	src/newui/actionpanel.c
 	src/newui/chatbox.c
@@ -59,7 +51,9 @@ set(DUNEDYNASTY_SRC_FILES
 	src/newui/viewport.c
 	src/object.c
 	src/opendune.c
+	src/os/cfgfile.c
 	src/os/endian.c
+	src/os/fs.c
 	src/pool/pool_house.c
 	src/pool/pool_structure.c
 	src/pool/pool_team.c
@@ -104,7 +98,6 @@ set(DUNEDYNASTY_SRC_FILES
 	src/team.c
 	src/tile.c
 	src/timer/timer.c
-	src/timer/timer_a5.c
 	src/tools/coord.c
 	src/tools/encoded_index.c
 	src/tools/orientation.c
@@ -113,10 +106,38 @@ set(DUNEDYNASTY_SRC_FILES
 	src/tools/random_starport.c
 	src/tools/random_xorshift.c
 	src/unit.c
-	src/video/prim_a5.c
-	src/video/video_a5.c
 	src/wsa.c
 	)
+
+if(MSDOS)
+    set(DUNEDYNASTY_SRC_FILES
+	${DUNEDYNASTY_SRC_FILES}
+	src/audio/adl/opl_hw.cpp
+	src/audio/adl/sound_adlib.cpp
+	src/audio/audio_dos.cpp
+	src/common_dos.c
+	src/sysinfo_dos.c
+	src/input/input_dos.c
+	src/timer/perf_dos.c
+	src/timer/timer_dos.c
+	src/video/prim_dos.c
+	src/video/video_dos.c
+	)
+else(MSDOS)
+    set(DUNEDYNASTY_SRC_FILES
+	${DUNEDYNASTY_SRC_FILES}
+	src/audio/adl/fmopl.cpp
+	src/audio/adl/opl_dosbox.cpp
+	src/audio/adl/opl_mame.cpp
+	src/audio/adl/sound_adlib.cpp
+	src/audio/audio_a5.cpp
+	src/common_a5.c
+	src/input/input_a5.c
+	src/timer/timer_a5.c
+	src/video/prim_a5.c
+	src/video/video_a5.c
+	)
+endif(MSDOS)
 
 if(WIN32)
     set(DUNEDYNASTY_SRC_FILES
@@ -124,6 +145,9 @@ if(WIN32)
 elseif(APPLE)
     set(DUNEDYNASTY_SRC_FILES
 	${DUNEDYNASTY_SRC_FILES} src/audio/midi_osx.c)
+elseif(MSDOS)
+    set(DUNEDYNASTY_SRC_FILES
+	${DUNEDYNASTY_SRC_FILES} src/audio/midi_dos.c)
 elseif(WITH_ALSA_MIDI)
     set(DUNEDYNASTY_SRC_FILES
 	${DUNEDYNASTY_SRC_FILES} src/audio/midi_alsa.c)
@@ -131,6 +155,14 @@ else()
     set(DUNEDYNASTY_SRC_FILES
 	${DUNEDYNASTY_SRC_FILES} src/audio/midi_none.c)
 endif()
+
+if(WITH_ENET)
+    set(DUNEDYNASTY_SRC_FILES
+	${DUNEDYNASTY_SRC_FILES} src/net/net_enet.c)
+else(WITH_ENET)
+    set(DUNEDYNASTY_SRC_FILES
+	${DUNEDYNASTY_SRC_FILES} src/net/net_none.c)
+endif(WITH_ENET)
 
 if(WITH_FLUIDSYNTH)
     set(DUNEDYNASTY_SRC_FILES
@@ -153,6 +185,9 @@ endif(WITH_AUD)
 if(WIN32)
     set(DUNEDYNASTY_SRC_FILES
 	${DUNEDYNASTY_SRC_FILES} src/crashlog/errorlog_win32.c)
+elseif(MSDOS)
+    set(DUNEDYNASTY_SRC_FILES
+	${DUNEDYNASTY_SRC_FILES} src/crashlog/errorlog_dos.c)
 else(WIN32)
     set(DUNEDYNASTY_SRC_FILES
 	${DUNEDYNASTY_SRC_FILES} src/crashlog/errorlog_std.c)

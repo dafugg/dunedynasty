@@ -1,12 +1,22 @@
 /* gameloop.c */
 
 #include <assert.h>
-#include <allegro5/allegro.h>
 #include <math.h>
 #include "os/common.h"
 #include "os/math.h"
 
 #include "gameloop.h"
+
+#ifdef __DJGPP__
+#include "timer/perf_dos.h"
+#include "video/video_dos.h"
+#include "crashlog/runlog_dos.h"
+#define PROFILE_BEGIN()         const uint64_t profile_t0 = Perf_Now()
+#define PROFILE_END(counter)    Perf_Add(counter, (uint32_t)(Perf_Now() - profile_t0))
+#else
+#define PROFILE_BEGIN()
+#define PROFILE_END(section)
+#endif
 
 #include "ai.h"
 #include "animation.h"
@@ -29,6 +39,7 @@
 #include "newui/menubar.h"
 #include "newui/viewport.h"
 #include "opendune.h"
+#include "scenario.h"
 #include "pool/pool.h"
 #include "pool/pool_structure.h"
 #include "pool/pool_unit.h"
@@ -387,6 +398,8 @@ GameLoop_Client_ProcessInput(void)
 static void
 GameLoop_Client_Draw(void)
 {
+	PROFILE_BEGIN();
+
 	if (g_gameOverlay == GAMEOVERLAY_NONE) {
 		GUI_DrawInterfaceAndRadar();
 		ChatBox_DrawInGame(g_chat_buf);
@@ -404,6 +417,7 @@ GameLoop_Client_Draw(void)
 		MenuBar_DrawOptionsOverlay();
 	}
 
+	PROFILE_END(PERF_DRAW);
 	Video_Tick();
 	A5_UseTransform(SCREENDIV_MAIN);
 }
@@ -451,6 +465,11 @@ GameLoop_ProcessGameTimer(void)
 			return;
 		}
 	}
+
+#ifdef __DJGPP__
+	/* Ticks skipped above (logic falling behind) show as game speed under 100%. */
+	Perf_AddGameTick();
+#endif
 
 	if (g_selectionTypeNew != g_selectionType) {
 		GUI_ChangeSelectionType(g_selectionTypeNew);
@@ -508,6 +527,13 @@ GameLoop_Loop(void)
 	g_inGame = true;
 	g_isEnteringChat = false;
 
+#ifdef __DJGPP__
+	RunLog_Printf("Mission start: %s, %s scenario %d\n",
+		(g_campaign_selected == CAMPAIGNID_SKIRMISH) ? "skirmish" : "campaign",
+		g_table_houseInfo[g_playerHouseID].name, g_scenarioID);
+	VideoDOS_MissionStart();
+#endif
+
 	while (g_gameMode == GM_NORMAL) {
 		const enum TimerType source = Timer_WaitForEvent();
 		const enum NetEvent e = Client_RecvMessages();
@@ -518,9 +544,13 @@ GameLoop_Loop(void)
 
 		if (source == TIMER_GUI) {
 			redraw = true;
+			PROFILE_BEGIN();
 			GameLoop_ProcessGUITimer();
+			PROFILE_END(PERF_GUI_TICKS);
 		} else {
+			PROFILE_BEGIN();
 			GameLoop_ProcessGameTimer();
+			PROFILE_END(PERF_GAME_TICKS);
 		}
 
 		Server_SendMessages();
@@ -539,6 +569,10 @@ GameLoop_Loop(void)
 			Client_Send_ReturnToLobby();
 		}
 	}
+
+#ifdef __DJGPP__
+	VideoDOS_MissionEnd();
+#endif
 
 	g_inGame = false;
 	g_isEnteringChat = false;

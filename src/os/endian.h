@@ -5,7 +5,7 @@
 
 #include "types.h"
 
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__DJGPP__)
 	#if !defined(__LITTLE_ENDIAN)
 		#define __LITTLE_ENDIAN 1234
 	#endif /* __LITTLE_ENDIAN */

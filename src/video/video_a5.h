@@ -24,6 +24,7 @@ extern void VideoA5_ToggleFullscreen(void);
 extern void VideoA5_ToggleFPS(void);
 extern void VideoA5_CaptureScreenshot(void);
 extern void VideoA5_Tick(void);
+extern void VideoA5_ClearScreen(void);
 
 extern void VideoA5_InitSprites(void);
 extern void VideoA5_DisplayFound(void);

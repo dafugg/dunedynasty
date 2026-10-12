@@ -1,7 +1,6 @@
 /** @file src/file.c %File access routines. */
 
 /* Use Allegro to create directories. */
-#include <allegro5/allegro.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,6 +10,7 @@
 #include "types.h"
 #include "os/endian.h"
 #include "os/file.h"
+#include "os/fs.h"
 #include "os/math.h"
 #include "os/strings.h"
 
@@ -202,7 +202,7 @@ File_Open_CaseInsensitive(enum SearchDirectory dir, const char *filename, const 
 	/* Create directories. */
 	if (dir == SEARCHDIR_PERSONAL_DATA_DIR && mode[0] == 'w') {
 		File_MakeCompleteFilename(buf, sizeof(buf), dir, "", false);
-		if (!al_make_directory(buf))
+		if (!FS_MakeDirectory(buf))
 			return NULL;
 	}
 
@@ -211,7 +211,7 @@ File_Open_CaseInsensitive(enum SearchDirectory dir, const char *filename, const 
 	if (fp != NULL)
 		return fp;
 
-#ifndef ALLEGRO_WINDOWS
+#if !defined(_WIN32) && !defined(__DJGPP__)
 	/* Attempt lower-case on case-sensitive filesystems. */
 	File_MakeCompleteFilename(buf, sizeof(buf), dir, filename, true);
 	fp = fopen(buf, mode);
