@@ -36,9 +36,39 @@ endif()
 
 add_definitions(-D_DEFAULT_SOURCE)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
+if(MSDOS)
+	# DJGPP hides POSIX declarations (PATH_MAX, struct stat, ...) under -std=c99.
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99")
+else(MSDOS)
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
+endif(MSDOS)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wmissing-prototypes -Wstrict-prototypes -Wold-style-definition -pedantic")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -W -Wall -Wno-unused-parameter")
+
+if(MSDOS)
+	# MS-DOS: Allegro 4.2 platform layer, no optional desktop libraries.
+	set(WITH_ACODEC OFF)
+	set(WITH_ALSA_MIDI OFF)
+	set(WITH_AUD OFF)
+	set(WITH_ENET OFF)
+	set(WITH_FLUIDSYNTH OFF)
+	set(WITH_MAD OFF)
+
+	set(DOS_CPU "i486" CACHE STRING "Target CPU for -march (i486, pentium, pentium-mmx, pentiumpro, pentium2, pentium3)")
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=${DOS_CPU}")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=${DOS_CPU}")
+
+	set(ALLEGRO4_DIR "$ENV{HOME}/tools/src/allegro-4.2" CACHE PATH "Allegro 4.2 source tree built for DJGPP")
+	if(NOT EXISTS "${ALLEGRO4_DIR}/lib/djgpp/liballeg.a")
+		message(FATAL_ERROR "Allegro 4.2 for DJGPP not found in ${ALLEGRO4_DIR}; run scripts/dos/setup-toolchain.sh")
+	endif()
+	include_directories(SYSTEM "${ALLEGRO4_DIR}/include")
+	# Allegro 4.2 predates DJGPP's <stdint.h> and would #define int8_t etc.
+	add_definitions(-DALLEGRO_HAVE_STDINT_H)
+	# Allegro 4.2 headers use GNU89 "extern inline" semantics.
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fgnu89-inline")
+	list(APPEND OPTIONAL_LIBRARIES "${ALLEGRO4_DIR}/lib/djgpp/liballeg.a" m)
+else(MSDOS)
 
 include(FindPkgConfig)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
@@ -134,14 +164,21 @@ if(WITH_MAD)
     endif(MAD_FOUND)
 endif(WITH_MAD)
 
+endif(MSDOS)
+
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "dist")
 configure_file("${CMAKE_SOURCE_DIR}/include/buildcfg.h.in" "${PROJECT_BINARY_DIR}/include/buildcfg.h")
 
 include(cmake/FileList.cmake)
 include_directories("include" "${PROJECT_BINARY_DIR}/include")
 
-add_executable(dunedynasty WIN32
-	${DUNEDYNASTY_SRC_FILES} ${CMAKE_SOURCE_DIR}/src/icon/icon.rc)
+if(MSDOS)
+	add_executable(dunedynasty ${DUNEDYNASTY_SRC_FILES})
+	set_target_properties(dunedynasty PROPERTIES OUTPUT_NAME "dunedyn")
+else(MSDOS)
+	add_executable(dunedynasty WIN32
+		${DUNEDYNASTY_SRC_FILES} ${CMAKE_SOURCE_DIR}/src/icon/icon.rc)
+endif(MSDOS)
 
 target_link_libraries(dunedynasty
 	${OPTIONAL_LIBRARIES}

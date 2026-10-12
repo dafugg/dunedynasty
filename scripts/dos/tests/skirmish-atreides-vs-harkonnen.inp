@@ -1,0 +1,8 @@
+# Main menu -> Skirmish -> Atreides (you) vs Harkonnen (AI, right-click) -> Start game.
+# <tick>:<action>; ticks are 1/60 s, coordinates are 320x200 menu space.
+120:C122;156   # Skirmish and Multiplayer
+300:C61;133    # Skirmish: START
+450:C83;107    # Atreides: you
+550:R83;93     # Harkonnen: AI
+700:C247;183   # START GAME
+1000:M160;100

@@ -2,7 +2,6 @@
 
 #include <assert.h>
 #include <string.h>
-#include <allegro5/allegro.h>
 #include "enum_string.h"
 #include "../os/common.h"
 #include "../os/math.h"
