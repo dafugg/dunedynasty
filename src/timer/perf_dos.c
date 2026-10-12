@@ -33,6 +33,7 @@ static volatile uint16_t s_last_count;
 static volatile uint64_t s_ticks[PERF_COUNTERS];
 
 static bool s_initialised;
+bool g_perf_detail;
 static uint8_t s_old_speaker;
 
 /* Main program only. */
