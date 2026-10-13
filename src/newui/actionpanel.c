@@ -417,6 +417,18 @@ ActionPanel_ProductionButtonDimensions(const Widget *widget, const Structure *s,
 	if (h != NULL) *h = height;
 }
 
+/* Compact build list: a row cut off at the bottom is not shown (or
+ * clickable) when at least one whole row fits. */
+static bool
+ActionPanel_GridItemHidden(const Widget *widget, int y1)
+{
+	const int list_h = ActionPanel_ProductionListHeight(widget);
+
+	return (s_factory_panel_layout & FACTORYPANEL_GRID_FLAG)
+		&& list_h >= SMALL_PRODUCTION_ICON_HEIGHT
+		&& y1 + SMALL_PRODUCTION_ICON_HEIGHT > widget->offsetY + 1 + list_h;
+}
+
 static void
 ActionPanel_ScrollButtonDimensions(const Widget *widget, bool up,
 		int *x1, int *y1, int *x2, int *y2)
@@ -554,7 +566,7 @@ ActionPanel_ClickFactory(const Widget *widget, Structure *s, uint16 scancode)
 			int x1, y1, x2, y2;
 
 			ActionPanel_ProductionButtonDimensions(widget, s, item, &x1, &y1, &x2, &y2, NULL, NULL);
-			if (Mouse_InRegion_Div(widget->div, x1, y1, x2, y2))
+			if (!ActionPanel_GridItemHidden(widget, y1) && Mouse_InRegion_Div(widget->div, x1, y1, x2, y2))
 				break;
 		}
 	}
@@ -701,7 +713,7 @@ ActionPanel_ClickStarport(const Widget *widget, Structure *s, uint16 scancode)
 
 		for (item = 0; item < g_factoryWindowTotal; item++) {
 			ActionPanel_ProductionButtonDimensions(widget, s, item, &x1, &y1, &x2, &y2, NULL, NULL);
-			if (Mouse_InRegion_Div(widget->div, x1, y1, x2, y2))
+			if (!ActionPanel_GridItemHidden(widget, y1) && Mouse_InRegion_Div(widget->div, x1, y1, x2, y2))
 				break;
 		}
 	}
@@ -964,7 +976,7 @@ ActionPanel_DrawFactory(const Widget *widget, Structure *s)
 		if (y1 > widget->offsetY + itemlist_height)
 			break;
 
-		if (y1 < widget->offsetY)
+		if (y1 < widget->offsetY || ActionPanel_GridItemHidden(widget, y1))
 			continue;
 
 		if (s->o.type == STRUCTURE_CONSTRUCTION_YARD) {
