@@ -537,7 +537,18 @@ GameLoop_Loop(void)
 	VideoDOS_MissionStart();
 #endif
 
+	enum GameOverlay prev_overlay = g_gameOverlay;
+
 	while (g_gameMode == GM_NORMAL) {
+		/* Save options when the options menus close, not only on a
+		 * clean exit: DOS players often just reset or switch off. */
+		if (g_gameOverlay != prev_overlay) {
+			if ((prev_overlay == GAMEOVERLAY_OPTIONS || prev_overlay == GAMEOVERLAY_GAME_CONTROLS)
+					&& g_gameOverlay == GAMEOVERLAY_NONE)
+				GameOptions_Save();
+			prev_overlay = g_gameOverlay;
+		}
+
 		const enum TimerType source = Timer_WaitForEvent();
 		const enum NetEvent e = Client_RecvMessages();
 		if (e == NETEVENT_DISCONNECT) {
