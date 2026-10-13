@@ -38,7 +38,7 @@ Bugs, fixes and features to offer upstream are tracked in
 | 5. Config, files, memory | Mostly done: `DUNEDYN.CFG`, run log, settings saved when the options menus close, DOS saves load | 16 MB minimum; 8 MB postponed (needs 10.4-11.5 MB, see Memory use); loading desktop saves untested; CPU-tuned builds (`DOS_CPU` exists, only the 486 build is packaged) |
 | 6. Skirmish | Works | CPU-scaling defaults (player count, unit caps) not exposed; more skirmish options (see features) |
 | 7. Multiplayer (Watt-32 + ENet) | Not started | Planned last |
-| 8. Upstream audit | Not started | OpenDUNE commits after the fork; recent gameflorist commits; upstream pull requests |
+| 8. Upstream audit | Done 2026-10-13 (UPSTREAM.md): nothing to port from OpenDUNE | gameflorist `feat-mt32-init` would need DOS hooks if merged |
 | Verification on real hardware | Not started | 486 to Pentium III machines; so far 86Box plus one user VM |
 
 ## Done beyond the original phases
@@ -268,7 +268,7 @@ when first played (up to 1.5 MB).
 1. Test pass (scripted 86Box runs), then the Windows cross-compile.
 2. Scripted 86Box test pass for the untested features.
 3. Real-hardware runs on the user's machines.
-4. OpenDUNE and gameflorist audit.
+4. Pull requests (UPSTREAM.md).
 5. Gameplay features, starting with pathfinding or guard mode.
 6. Multiplayer.
 
