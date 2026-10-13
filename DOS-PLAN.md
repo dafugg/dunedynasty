@@ -174,18 +174,15 @@ when first played (up to 1.5 MB).
 ## Known issues and open questions
 
 ### Correctness
-- **Desktop build: compiles, not yet run.** The Windows x64 build now
-  cross-compiles on Linux (`scripts/windows/build-windows-x64-cross.sh`:
-  llvm-mingw plus MSYS2 UCRT64 libraries, the same ones upstream's CI
-  uses), with no new warnings from our changes. It still has to be run
-  on Windows (user's Windows 11 PC), and the Linux desktop build has
-  not been built. Both before any upstream pull request.
-  On Windows so far (user): runs to the menu; settings are kept across
-  restarts; save games work both ways: a DOS save loads and plays on
-  Windows, and a Windows save loads and plays on DOS (86Box, 2026-10-13).
-  Since then the desktop build uses upstream's Allegro 5 config, file and
-  menu code again (DOS gets them from `src/dos/a5compat/`, see
-  UPSTREAM.md), so a quick Windows re-check is due.
+- **Desktop builds.** Windows x64 cross-compiles on Linux
+  (`scripts/windows/build-windows-x64-cross.sh`: llvm-mingw plus the
+  MSYS2 UCRT64 libraries upstream's CI uses), with no new warnings from
+  our changes. On the user's Windows 11 PC it runs, keeps settings, and
+  saves load both ways with DOS (2026-10-13). Since then the desktop
+  build uses upstream's Allegro 5 config, file and menu code again (DOS
+  gets them from `src/dos/a5compat/`, see UPSTREAM.md), so a Windows
+  re-check is due, along with the per-PR test builds on the share
+  (`windows/pr-tests/`). The Linux desktop build has not been built.
 - Settings that a command-line switch overrides for one run (`-res`,
   `-voices`, `-quality`, `-allaudio`) are saved with their pre-override
   values, so changing them in the options menu during that run is not
