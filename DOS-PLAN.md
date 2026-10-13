@@ -105,11 +105,12 @@ Bugs, fixes and features to offer upstream are tracked in
 - Sound in large battles: Allegro clips by saturation when many sounds
   mix; Dune Dynasty throttles repeats of one sample within 8 ticks.
   Neither measured on DOS.
-- Rally points; missions after the third.
+- Missions after the third.
 - Tested in 86Box (Atreides mission 3 saves): drag selection, control
   groups (Ctrl+1, 1), group move orders, build queues and Shift to
   reduce, save and load on DOS, arrow-key scrolling, hint and options
   overlays, game speed below 60 fps.
+- Rally points: work (tested by the user, 2026-10-13).
 
 ### Cosmetic
 - The overlay's font has no lower case, so it reads in capitals.
@@ -152,7 +153,7 @@ Bugs, fixes and features to offer upstream are tracked in
 ### Platform and compatibility
 - 8 MB machines: tight atlas packing, free the 1 MB render buffer, lock
   only interrupt-handler memory, trim the C++ runtime.
-- Untested on DOS: rally points, later missions,
+- Untested on DOS: later missions,
   large battles (frame rate and sound).
 
 ### Gameplay features (platform-neutral, save-compatible; see UPSTREAM.md)
