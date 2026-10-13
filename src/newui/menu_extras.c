@@ -906,10 +906,6 @@ GameplayOptions_Initialize(void)
 	si->d.checkbox = &enhancement_attack_dir_consistency;
 	snprintf(si->text, sizeof(si->text), "Consistent directional damage");
 
-	si = Scrollbar_AllocItem(w, SCROLLBAR_CHECKBOX);
-	si->d.checkbox = &enhancement_compact_build_list;
-	snprintf(si->text, sizeof(si->text), "Compact two-column build list");
-
 	GUI_Widget_Scrollbar_Init(w, ws->scrollMax, 6, 0);
 }
 
