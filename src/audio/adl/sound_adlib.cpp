@@ -49,11 +49,6 @@
 #ifdef __USE_SDL__
 #include <SDL_mixer.h>
 #include <SDL_endian.h>
-#elif defined(__DJGPP__)
-#include <dpmi.h>
-#define AUDIO_S8	0
-#define AUDIO_U8	1
-#define AUDIO_S16LSB	2
 #else
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_audio.h>
@@ -62,6 +57,10 @@
 #define AUDIO_S16LSB	ALLEGRO_AUDIO_DEPTH_INT16
 #endif
 
+
+#ifdef __DJGPP__
+#include <dpmi.h>
+#endif
 
 #include "fmopl.h"
 
@@ -471,8 +470,8 @@ private:
 	bool _v2;
 
 #ifdef __DJGPP__
-	/* The 72 Hz timer interrupt runs the driver, so calls from the main
-	 * program mask interrupts.  Not nested. */
+	/* MS-DOS: a timer interrupt runs the driver (SoundAdLibPC::tick), so
+	 * calls from the main program mask interrupts.  Not nested. */
 	void lock() { _irqState = __dpmi_get_and_disable_virtual_interrupt_state(); }
 	void unlock() { __dpmi_get_and_set_virtual_interrupt_state(_irqState); }
 	int _irqState;
@@ -2394,33 +2393,6 @@ SoundAdLibPC::SoundAdLibPC(SDL_RWops* rwop, bool bMAME) : _driver(0), _trackEntr
 }
 #endif
 
-#ifdef __DJGPP__
-SoundAdLibPC::SoundAdLibPC(const uint8_t *data, size_t size, int freq, bool bMAME) : _driver(0), _trackEntries(), _soundDataPtr(0) {
-	memset(_trackEntries, 0, sizeof(_trackEntries));
-
-	m_freq = freq;
-	m_format = AUDIO_S16LSB;
-	m_channels = 1;
-
-	_driver = new AdLibDriver(m_freq, bMAME);
-	assert(_driver);
-
-	_sfxPlayingSound = -1;
-	_soundTriggers = 0;
-	_numSoundTriggers = 0;
-
-	bJustStartedPlaying = false;
-
-	internalLoadData(data, size);
-}
-
-/* One 72 Hz driver step, as the callback would run between samples. */
-void SoundAdLibPC::tick() {
-	process();
-	_driver->callback();
-	bJustStartedPlaying = false;
-}
-#else
 SoundAdLibPC::SoundAdLibPC(ALLEGRO_FILE* rwop, int freq, bool bMAME) : _driver(0), _trackEntries(), _soundDataPtr(0) {
 	memset(_trackEntries, 0, sizeof(_trackEntries));
 
@@ -2442,7 +2414,13 @@ SoundAdLibPC::SoundAdLibPC(ALLEGRO_FILE* rwop, int freq, bool bMAME) : _driver(0
 	internalLoadFile(rwop);
 }
 
-#endif /* __DJGPP__ */
+/* One driver step, as the callback runs between samples, without
+ * generating any: for a real OPL chip driven from a timer. */
+void SoundAdLibPC::tick() {
+	process();
+	_driver->callback();
+	bJustStartedPlaying = false;
+}
 
 SoundAdLibPC::~SoundAdLibPC() {
 	delete _driver;
@@ -2655,27 +2633,6 @@ void SoundAdLibPC::beginFadeOut() {
 	playSoundEffect(1);
 }
 
-#ifdef __DJGPP__
-void SoundAdLibPC::internalLoadData(const uint8_t *data, size_t size) {
-	if (data == NULL || size <= 120)
-		return;
-
-	playSoundEffect(0);
-	playSoundEffect(0);
-
-	_driver->callback(8, int(-1));
-	_soundDataPtr = 0;
-
-	memcpy(_trackEntries, data, 120 * sizeof(uint8));
-
-	const size_t soundDataSize = size - 120;
-	_soundDataPtr = new uint8[soundDataSize];
-	assert(_soundDataPtr);
-	memcpy(_soundDataPtr, data + 120, soundDataSize);
-
-	_driver->callback(4, _soundDataPtr);
-}
-#else
 void SoundAdLibPC::internalLoadFile(ALLEGRO_FILE* rwop) {
   if(rwop == NULL) {
 	return;
@@ -2740,7 +2697,6 @@ void SoundAdLibPC::internalLoadFile(ALLEGRO_FILE* rwop) {
 
   _driver->callback(4, _soundDataPtr);
 }
-#endif /* __DJGPP__ */
 
 #ifdef __USE_SDL__
 Mix_Chunk* SoundAdLibPC::getSubsong(int Num) {

@@ -1,4 +1,4 @@
-/** @file src/os/cfgfile.c OS-independent INI-style configuration files.
+/** @file src/dos/cfgfile.c OS-independent INI-style configuration files.
  *
  * Mirrors the subset of Allegro 5's config API that Dune Dynasty uses:
  * comments and entry order are preserved on save, entries before the

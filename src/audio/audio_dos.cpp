@@ -22,6 +22,7 @@
 #include "audio_a5.h"
 
 #include "adl/sound_adlib.h"
+#include <allegro5/allegro_memfile.h>
 
 extern bool OPLHW_Detect(void);
 
@@ -33,6 +34,7 @@ extern "C" {
 #include "audio.h"
 #include "midi.h"
 #include "../common_dos.h"
+#include "../dos/config_dos.h"
 #include "mt32mpu.h"
 #include "../file.h"
 #include "../table/sound.h"
@@ -177,7 +179,9 @@ AudioDOS_CreateAdlib(const MusicInfo *mid)
 	/* Only one OPL instance may exist: drop the old player first. */
 	AudioDOS_SetAdlib(NULL, false);
 
-	SoundAdLibPC *adlib = new SoundAdLibPC(buf, length, ADLIB_TICKS_PER_SECOND, false);
+	ALLEGRO_FILE *f = al_open_memfile(buf, length, "r");
+	SoundAdLibPC *adlib = new SoundAdLibPC(f, ADLIB_TICKS_PER_SECOND, false);
+	al_fclose(f);
 	delete[] buf;
 
 	adlib->init();

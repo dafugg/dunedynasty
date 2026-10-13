@@ -1,7 +1,7 @@
-/** @file src/os/cfgfile.h OS-independent INI-style configuration files. */
+/** @file src/dos/cfgfile.h OS-independent INI-style configuration files. */
 
-#ifndef OS_CFGFILE_H
-#define OS_CFGFILE_H
+#ifndef DOS_CFGFILE_H
+#define DOS_CFGFILE_H
 
 #include <stdbool.h>
 

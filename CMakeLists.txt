@@ -74,6 +74,9 @@ if(MSDOS)
 		message(FATAL_ERROR "Allegro 4.2 for DJGPP not found in ${ALLEGRO4_DIR}; run scripts/dos/setup-toolchain.sh")
 	endif()
 	include_directories(SYSTEM "${ALLEGRO4_DIR}/include")
+	# The few Allegro 5 calls in shared code, implemented for DOS
+	# (src/dos/a5compat.c): there is no Allegro 5 for DOS.
+	include_directories(BEFORE "${CMAKE_SOURCE_DIR}/src/dos/a5compat")
 	# Allegro 4.2 predates DJGPP's <stdint.h> and would #define int8_t etc.
 	add_definitions(-DALLEGRO_HAVE_STDINT_H)
 	# Allegro 4.2 headers use GNU89 "extern inline" semantics.
