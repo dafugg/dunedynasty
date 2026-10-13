@@ -32,7 +32,7 @@ Keep this up to date as things are found or fixed.
 | Feature | Where | Notes |
 |---|---|---|
 | Build without ENet: `Net_IsAvailable()`, `src/net/net_none.c` keeps the single-player message path, lobby hides multiplayer. | `src/net/*`, `src/newui/menu_lobby.c` | Useful for minimal or embedded builds. |
-| Compact build list option (off by default): two columns of small icons, as many rows as fit, like Command & Conquer; READY, percentage and pause sign drawn on the icons. Any resolution; 4 items instead of 1 at 320x240, all 7 of a mission 3 yard at 640x480. | `src/newui/actionpanel.c`, `src/opendune.c` (widget width), `src/enhancement.c`, `src/config_a5.c`, `src/newui/menu_extras.c` | Screenshots in the share's `compact-build-list/`. |
+| Compact build list option (off by default): two columns of small icons, as many rows as fit, like Command & Conquer; READY, percentage and pause sign drawn on the icons. Any resolution; 4 items instead of 1 at 320x240, all 7 of a mission 3 yard at 640x480. | `src/newui/actionpanel.c`, `src/opendune.c` (widget width), `src/enhancement.c`, `src/config_a5.c`, `src/newui/menubar.c` and `src/gui/gui.c` (in-game Game Controls) | Screenshots in the share's `compact-build-list/`. |
 
 ## Feature ideas from other remakes
 
@@ -171,7 +171,7 @@ Line counts are approximate (added plus removed).
 |---|---|---|
 | `GameOptions_Save()` when the in-game Options or Game Controls menu closes, and on leaving Options and Extras | Options were only written on a clean exit | Changes are lost when the game is killed, reset or switched off (common on DOS; a crash or Task Manager on the desktop) |
 
-**4. Compact build list option** — `src/newui/actionpanel.c` (134), `src/opendune.c` (10), `src/enhancement.c/.h` (9), `src/config_a5.c` (1), `src/newui/menu_extras.c` (4)
+**4. Compact build list option** — `src/newui/actionpanel.c` (134), `src/opendune.c` (10), `src/newui/menubar.c` (10), `src/enhancement.c/.h` (9), `src/config_a5.c` (1), `src/gui/gui.c` (1)
 
 | Change | Why | Without it |
 |---|---|---|
@@ -207,7 +207,11 @@ One bug or one feature per pull request. Each branch is based on
 upstream `master` (4469449c), holds only its own change, and builds for Windows x64 (cross-compiled; no new warnings).
 Work on them in the worktree `../dune2qol-pr`. Windows test builds,
 each with a `BUILD.TXT` saying what to test, are on the share in
-`windows/pr-tests/` (1a-1c share one build). Nothing is pushed yet.
+`windows/pr-tests/` (1a-1c share one build). Pushed to the fork
+https://github.com/dafugg/dunedynasty (remote `fork`, 2026-10-13),
+authored as `dafugg <5621217+dafugg@users.noreply.github.com>` because
+GitHub blocks pushes with the private address; no pull requests opened
+yet.
 
 | PR | Branch | Commits | Tested |
 |---|---|---|---|
@@ -301,9 +305,10 @@ leave `CHANGES.txt` alone; each description below suggests a line.
 > instead of one; at 640x480 all seven of a mission 3 construction
 > yard. Works with any resolution and sidebar scale.
 >
-> Option: Extras > Gameplay > "Compact two-column build list"
-> (`compact_build_list` in `[enhancement]`). Documented in the README
-> and the sample config. Screenshots attached (share:
+> Option: "Compact build list" on the last page of the in-game Game
+> Controls, next to the sidebar scale, so the effect shows at once; it
+> switches while playing (`compact_build_list` in `[enhancement]`).
+> Documented in the README and the sample config. Screenshots attached (share:
 > `compact-build-list/`).
 >
 > Suggested CHANGES.txt: "Add option for a compact two-column build
