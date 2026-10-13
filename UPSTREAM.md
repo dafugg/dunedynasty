@@ -14,11 +14,12 @@ Keep this up to date as things are found or fixed.
 | `Audio_ScanMusic` resets `count` and `count_default` but not `count_found`, so a second scan would double-count. Latent: only scanned once today. | `src/audio/audio.c` `Audio_ScanMusic` | Reset `count_found` too. | Not submitted |
 | `AdLibDriver::callback` returns early on an unknown opcode without calling `unlock()`. Harmless where lock/unlock are no-ops (desktop); deadlocks or leaves interrupts off where they are real. | `src/audio/adl/sound_adlib.cpp` | `unlock()` before the early return. | Not submitted |
 
+| **Game slows down with the frame rate.** `GameLoop_ProcessGameTimer` jumped game time to the timer, so ticks between slow frames were lost (46% speed at 27 fps on a 486). Also, the loop drew only when the timer queue was empty, so a machine too slow for the game speed never drew. | `src/gameloop.c` | One step per tick, catching up on queued ticks, skipping ahead past 8 behind; draw at least every 6 ticks. Above 60 fps nothing changes. | Not submitted |
+
 ## Bugs found, not fixed
 
 | Bug | Where | Notes |
 |---|---|---|
-| **Game speed tied to frame rate.** Game logic runs at most once per frame: queued game-timer ticks find `g_timerGame == Timer_GameTicks()` and return. Below the game speed's tick rate (60 Hz at normal) the game slows down, e.g. ~70% at 42 fps. Invisible on desktop (always 60 fps+). | `src/gameloop.c` `GameLoop_ProcessGameTimer` | Fix: run each elapsed step before drawing, capped. Changes game feel on slow machines; needs a decision (and care with multiplayer sync). |
 | **Per-frame game-state work in the draw path.** `GUI_DrawInterfaceAndRadar` (now the every-frame draw) still runs `Unit_UpdateMap(1, u)` for every unit, as the original's occasional full refresh did: fog removal in each unit's radius, tile marking, visible-unit counts. 4.9 ms per frame on a 486DX2/66 in Atreides mission 3 (the structure loop was already disabled with `#if 0`). `Map_Client_UpdateFogOfWar` also copies all 4,096 tiles every frame (1.9 ms). Both make game state depend on frame rate. | `src/gui/gui.c` `GUI_DrawInterfaceAndRadar`, `src/map.c` `Map_Client_UpdateFogOfWar` | Cannot simply be skipped: these calls are how stationary units notice enemies entering sight range (`Map_UnveilTile` marks units/structures seen, wakes the AI). Measured cost: 5.5 ms per frame (3.3 ms `Map_UpdateAround`, 1.9 ms sight radius). Idea, **deferred** (changes spotting latency slightly): run both at a fixed 15 Hz (every 4 game ticks) regardless of frame rate, which also makes behaviour identical on every machine. |
 | Hint popups redraw and shade the whole screen every frame (~9 ms per frame on a 486DX2/66) while the game is paused behind them. | `GameLoop_Client_Draw`, `MenuBar_DrawInGameOverlay` | Draw once while paused. |
 | `Shape_Width`/`Shape_Height` fallbacks look swapped. | `src/shape.c:36-51` | Not yet confirmed to matter in play. |
@@ -31,6 +32,7 @@ Keep this up to date as things are found or fixed.
 | Config file reader/writer without Allegro 5 (`al_config`). | `src/os/cfgfile.c/.h`, `src/config_a5.c` | Now used on all platforms; removes an Allegro 5 dependency from config handling. |
 | Directory listing and creation helpers (replace `al_make_directory`, `al_*_fs_entry`). | `src/os/fs.c/.h`, `src/file.c`, `src/newui/savemenu.c`, `src/newui/menu.c` | Same: less Allegro 5 outside the platform layer. |
 | Build without ENet: `Net_IsAvailable()`, `src/net/net_none.c` keeps the single-player message path, lobby hides multiplayer. | `src/net/*`, `src/newui/menu_lobby.c` | Useful for minimal or embedded builds. |
+| Compact build list option (off by default): two columns of small icons, as many rows as fit, like Command & Conquer; READY, percentage and pause sign drawn on the icons. Any resolution; 4 items instead of 1 at 320x240, all 7 of a mission 3 yard at 640x480. | `src/newui/actionpanel.c`, `src/opendune.c` (widget width), `src/enhancement.c`, `src/config_a5.c`, `src/newui/menu_extras.c` | Screenshots in the share's `compact-build-list/`. |
 | `InputA5_WaitForEvent` / `InputA5_FlushEvents` (block instead of polling). | `src/input/input_a5.c` | Small; check whether upstream wants it on its own. |
 
 ## Feature ideas from other remakes

@@ -33,7 +33,7 @@ Bugs, fixes and features to offer upstream are tracked in
 |---|---|---|
 | 1. Headless build | Done | — |
 | 2. 8bpp software renderer | Done, plus the speed work below | Rotated/scaled sprites and high-res overlays not supported; `rubblemask.png` is only used by the desktop renderer (effect not yet checked); faster 640x480 on 486s |
-| 3. Input and timer | Done | Arrow-key scrolling; mouse wheel and Ctrl/Alt/Shift combinations untested; mouse drivers other than CuteMouse; game-speed fix (decision) |
+| 3. Input and timer | Done, including real-time game speed below 60 fps | Mouse wheel and Ctrl/Alt/Shift combinations untested; mouse drivers other than CuteMouse |
 | 4. Audio | Done: Sound Blaster samples, real OPL2/OPL3, MPU-401 MIDI | Not measured in large battles; MP3 music packs for Pentium-class machines (optional) |
 | 5. Config, files, memory | Mostly done: `DUNEDYN.CFG`, run log, settings saved when the options menus close, DOS saves load | **8 MB machines** (needs about 10 MB now); loading desktop saves untested; CPU-tuned builds (`DOS_CPU` exists, only the 486 build is packaged) |
 | 6. Skirmish | Works | CPU-scaling defaults (player count, unit caps) not exposed; more skirmish options (see features) |
@@ -56,16 +56,20 @@ Bugs, fixes and features to offer upstream are tracked in
 - Fixed upstream: jukebox crash when advancing to a group with no
   playable songs.
 - Settings saved when the options menus close, not only on a clean exit.
+- Compact build list option (off by default, any resolution): two
+  columns of small icons, as many rows as fit; READY / percentage /
+  pause sign on the icons. Screenshots for a pull request are on the
+  share (`compact-build-list/`).
+- Game keeps real time below 60 fps: one game step per timer tick,
+  catching up on queued ticks (skipping ahead past 8 behind), and a frame
+  is drawn at least every 6 ticks. Atreides mission 3 at 640x480 on a
+  DX2/66 (86Box): 27 fps; game speed 46% before, 95% after.
 - Test rig: 86Box machine templates, scripted input and screenshots,
   `DD_PROFILE` / `-profcoarse` timing, packaging to a share
   (`DOS_PUBLISH_DIRS`).
 
 ## Decisions pending
 
-- **Game-speed fix.** Dune Dynasty runs at most one game step per drawn
-  frame, so below 60 fps the game itself slows (about 75% speed at
-  45 fps). Fix: run every overdue step before drawing, with a cap.
-  Changes pacing on slow machines.
 - **Vision updates at a fixed 15 Hz** (deferred). `Unit_UpdateMap` runs
   for every unit every frame (~5 ms on a DX2) and is how stationary
   units notice enemies. Running it at a fixed rate would be cheaper and
@@ -74,17 +78,16 @@ Bugs, fixes and features to offer upstream are tracked in
 ## Known issues and open questions
 
 ### Correctness
-- **Desktop build not compiled since the DOS work.** Allegro 5 is not
-  installed on the build machine, so shared changes (`src/os/cfgfile.c`
-  replacing `al_config`, `src/os/fs.c`, `Net_IsAvailable`, the additions
-  to `input_a5.c` and `video_a5.c`, `GameOptions_Save` on menu close)
-  were only compile-checked as far as possible. Must build and run the
-  Linux and Windows targets before any upstream pull request.
-- **No frames when game ticks can't keep up.** The game loop only draws
-  when the timer queue is empty (`GameLoop_Loop`). If processing ticks
-  takes longer than the 60 Hz tick period (seen with the gprof build),
-  nothing is drawn at all. Real 486s don't hit this today, but a large
-  skirmish on a slow machine might. Related to the game-speed fix.
+- **Desktop build: compiles, not yet run.** The Windows x64 build now
+  cross-compiles on Linux (`scripts/windows/build-windows-x64-cross.sh`:
+  llvm-mingw plus MSYS2 UCRT64 libraries, the same ones upstream's CI
+  uses), with no new warnings from our changes. It still has to be run
+  on Windows (user's Windows 11 PC), and the Linux desktop build has
+  not been built. Both before any upstream pull request.
+  On Windows so far (user): runs to the menu; settings are kept across
+  restarts (our config reader); save games work both ways: a DOS save
+  loads and plays on Windows, and a Windows save loads and plays on DOS
+  (86Box, 2026-10-13).
 - Settings that a command-line switch overrides for one run (`-res`,
   `-voices`, `-quality`, `-allaudio`) are saved with their pre-override
   values, so changing them in the options menu during that run is not
@@ -100,8 +103,11 @@ Bugs, fixes and features to offer upstream are tracked in
 - Sound in large battles: Allegro clips by saturation when many sounds
   mix; Dune Dynasty throttles repeats of one sample within 8 ticks.
   Neither measured on DOS.
-- Desktop save games on DOS; Dune Dynasty's extra controls; missions
-  after the third.
+- Rally points; missions after the third.
+- Tested in 86Box (Atreides mission 3 saves): drag selection, control
+  groups (Ctrl+1, 1), group move orders, build queues and Shift to
+  reduce, save and load on DOS, arrow-key scrolling, hint and options
+  overlays, game speed below 60 fps.
 
 ### Cosmetic
 - The overlay's font has no lower case, so it reads in capitals.
@@ -127,9 +133,6 @@ Bugs, fixes and features to offer upstream are tracked in
 ## Backlog
 
 ### Usability
-- Compact build list at 320x240: two columns of small icons, 4 items
-  visible instead of 1 (`src/newui/actionpanel.c`).
-- Arrow-key scrolling.
 - README: OPL-only music (`dune2_midi=0`); maybe a `-nomidi` switch.
 - Missing cursor with mouse drivers other than CuteMouse (needs a
   `DUNEDYN.LOG` from that setup).
@@ -147,8 +150,8 @@ Bugs, fixes and features to offer upstream are tracked in
 ### Platform and compatibility
 - 8 MB machines: tight atlas packing, free the 1 MB render buffer, lock
   only interrupt-handler memory, trim the C++ runtime.
-- Untested on DOS: desktop save games, control groups, build queues,
-  rally points, later missions, large battles (frame rate and sound).
+- Untested on DOS: rally points, later missions,
+  large battles (frame rate and sound).
 
 ### Gameplay features (platform-neutral, save-compatible; see UPSTREAM.md)
 - Better pathfinding (breadth-first or A*, same 14-step route format).
@@ -164,7 +167,7 @@ Bugs, fixes and features to offer upstream are tracked in
 
 ## Suggested order
 
-1. Game-speed fix (if approved), compact build list, arrow keys.
+1. Test pass (scripted 86Box runs), then the Windows cross-compile.
 2. Scripted 86Box test pass for the untested features.
 3. 8 MB support.
 4. Real-hardware runs on the user's machines.
