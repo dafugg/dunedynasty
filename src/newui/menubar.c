@@ -12,7 +12,6 @@
 #include "../os/sleep.h"
 
 #include "menubar.h"
-#include "../timer/perf.h"
 
 #include "mentat.h"
 #include "savemenu.h"
@@ -183,11 +182,9 @@ MenuBar_Draw(enum HouseType houseID)
 	Video_DrawCPSSpecial(CPS_SIDEBAR_BOTTOM, houseID, 0, sidebar->height - 85);
 	Prim_FillRect_i(16, sidebar->height - 64, 80, sidebar->height, 0);
 
-	PERF_SECTION_BEGIN(minimap);
 	if (!MenuBar_DrawRadarAnimation()) {
 		GUI_Widget_Viewport_RedrawMap();
 	}
-	PERF_SECTION_END(minimap, PERF_DRAW_MINIMAP);
 
 	A5_UseTransform(prev_transform);
 }

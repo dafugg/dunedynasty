@@ -13,10 +13,9 @@ extern void VideoDOS_ToScreen(float x, float y, int *sx, int *sy);
 extern void VideoDOS_ScaleToScreen(float w, float h, int *sw, int *sh);
 extern int VideoDOS_NearestColour(unsigned char r, unsigned char g, unsigned char b);
 extern void VideoDOS_PollAutomation(void);
+extern void VideoDOS_ClearScreen(void);
 
 /* Performance summaries in DUNEDYN.LOG. */
-extern void VideoDOS_MissionStart(void);
-extern void VideoDOS_MissionEnd(void);
 extern void VideoDOS_LogPerformance(const char *title);
 
 /* audio_dos.cpp: sample voices playing, of those available. */

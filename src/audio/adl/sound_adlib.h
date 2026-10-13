@@ -41,10 +41,9 @@
 
 #ifdef __USE_SDL__
 #include <SDL_rwops.h>
-#elif !defined(__DJGPP__)
+#else
 #include <allegro5/allegro.h>
 #endif
-#include <stddef.h>
 #include <stdint.h>
 #include <vector>
 #ifdef __USE_SDL__
@@ -75,13 +74,8 @@ public:
 #ifdef __USE_SDL__
 	SoundAdLibPC(SDL_RWops* rwop, bool bMAME = true);
 #endif
-#ifdef __DJGPP__
-	/* MS-DOS: real OPL chip, driven by tick() from a 72 Hz interrupt. */
-	SoundAdLibPC(const uint8_t *data, size_t size, int freq, bool bMAME = true);
-	void tick();
-#else
 	SoundAdLibPC(ALLEGRO_FILE* rwop, int freq, bool bMAME = true);
-#endif
+	void tick();
 	~SoundAdLibPC();
 
 	static void callback(void *, Uint8 *, int);
@@ -104,11 +98,7 @@ public:
 	Mix_Chunk* getSubsong(int Num);
 #endif
 private:
-#ifdef __DJGPP__
-	void internalLoadData(const uint8_t *data, size_t size);
-#else
 	void internalLoadFile(ALLEGRO_FILE* rwop);
-#endif
 
 	void play(uint8_t track);
 

@@ -1,13 +1,12 @@
 /* savemenu.c */
 
 #include <assert.h>
+#include <allegro5/allegro.h>
 #include <ctype.h>
-#include <stdlib.h>
 #include <string.h>
 #include "enum_string.h"
 #include "multichar.h"
 #include "../os/endian.h"
-#include "../os/fs.h"
 #include "../os/math.h"
 #include "../os/strings.h"
 
@@ -32,17 +31,18 @@ static int s_last_index;
 char g_savegameDesc[5][51];                                 /*!< Array of savegame descriptions for the SaveLoad window. */
 
 static bool
-SaveMenu_IsValidFilename(const char *filename)
+SaveMenu_IsValidFilename(const ALLEGRO_PATH *path)
 {
-	const char *extension = strrchr(filename, '.');
-	if (extension == NULL || strcasecmp(extension, ".DAT") != 0)
+	const char *extension = al_get_path_extension(path);
+	if (strcasecmp(extension, ".DAT") != 0)
 		return false;
 
-	if (strncasecmp(filename, "_SAVE", 5) != 0)
+	const char *basename = al_get_path_basename(path);
+	if (strncasecmp(basename, "_SAVE", 5) != 0)
 		return false;
 
-	const char *digit = filename + 5;
-	while (digit != extension) {
+	const char *digit = basename + 5;
+	while (*digit != '\0') {
 		if (!isdigit(*digit))
 			return false;
 
@@ -50,25 +50,6 @@ SaveMenu_IsValidFilename(const char *filename)
 	}
 
 	return true;
-}
-
-static void
-SaveMenu_AddSavedGame(const char *dirname, const char *filename, bool is_directory, void *data)
-{
-	VARIABLE_NOT_USED(dirname);
-
-	Widget *scrollbar = data;
-
-	/* Filename should be _SAVE###.DAT */
-	if (is_directory || !SaveMenu_IsValidFilename(filename))
-		return;
-
-	ScrollbarItem *si = Scrollbar_AllocItem(scrollbar, SCROLLBAR_ITEM);
-	int index;
-
-	strncpy(si->text, filename, sizeof(si->text));
-	sscanf(filename + 5, "%d", &index);
-	s_last_index = max(index, s_last_index);
 }
 
 static void
@@ -80,7 +61,34 @@ SaveMenu_FindSavedGames(bool save, Widget *scrollbar)
 	WidgetScrollbar *ws = scrollbar->data;
 	ws->scrollMax = 0;
 
-	FS_ListDirectory(dirname, SaveMenu_AddSavedGame, scrollbar);
+	ALLEGRO_FS_ENTRY *e = al_create_fs_entry(dirname);
+	if (e != NULL) {
+		if (al_open_directory(e)) {
+			ALLEGRO_FS_ENTRY *f = al_read_directory(e);
+			while (f != NULL) {
+				ALLEGRO_PATH *path = al_create_path(al_get_fs_entry_name(f));
+
+				/* Filename should be _SAVE###.DAT */
+				if (SaveMenu_IsValidFilename(path)) {
+					const char *filename = al_get_path_filename(path);
+					ScrollbarItem *si = Scrollbar_AllocItem(scrollbar, SCROLLBAR_ITEM);
+					int index;
+
+					strncpy(si->text, filename, sizeof(si->text));
+					sscanf(filename + 5, "%d", &index);
+					s_last_index = max(index, s_last_index);
+				}
+
+				al_destroy_path(path);
+				al_destroy_fs_entry(f);
+				f = al_read_directory(e);
+			}
+
+			al_close_directory(e);
+		}
+
+		al_destroy_fs_entry(e);
+	}
 
 	/* If saving, generate a new name. */
 	if (save) {

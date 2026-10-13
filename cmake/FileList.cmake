@@ -51,9 +51,7 @@ set(DUNEDYNASTY_SRC_FILES
 	src/newui/viewport.c
 	src/object.c
 	src/opendune.c
-	src/os/cfgfile.c
 	src/os/endian.c
-	src/os/fs.c
 	src/pool/pool_house.c
 	src/pool/pool_structure.c
 	src/pool/pool_team.c
@@ -116,6 +114,9 @@ if(MSDOS)
 	src/audio/adl/sound_adlib.cpp
 	src/audio/audio_dos.cpp
 	src/common_dos.c
+	src/dos/a5compat.c
+	src/dos/cfgfile.c
+	src/dos/config_dos.c
 	src/sysinfo_dos.c
 	src/input/input_dos.c
 	src/timer/perf_dos.c

@@ -622,12 +622,6 @@ VideoA5_CreateWhiteMaskIndexed(unsigned char *buf,
 }
 
 void
-VideoA5_ClearScreen(void)
-{
-	al_clear_to_color(al_map_rgb(0, 0, 0));
-}
-
-void
 VideoA5_Tick(void)
 {
 	static double l_last_time;

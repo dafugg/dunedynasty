@@ -187,27 +187,6 @@ InputA5_ProcessEvent(ALLEGRO_EVENT *event, bool apply_mouse_transform)
 	return false;
 }
 
-void
-InputA5_FlushEvents(void)
-{
-	al_flush_event_queue(g_a5_input_queue);
-}
-
-/**
- * Block until the next input or timer event, and process it.
- * @return true if a redraw is required.
- */
-bool
-InputA5_WaitForEvent(bool apply_mouse_transform, bool *is_timer_event)
-{
-	ALLEGRO_EVENT event;
-
-	al_wait_for_event(g_a5_input_queue, &event);
-	*is_timer_event = (event.type == ALLEGRO_EVENT_TIMER);
-
-	return InputA5_ProcessEvent(&event, apply_mouse_transform);
-}
-
 bool
 InputA5_Tick(bool apply_mouse_transform)
 {

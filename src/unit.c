@@ -11,7 +11,6 @@
 #include "os/strings.h"
 
 #include "unit.h"
-#include "timer/perf.h"
 
 #include "ai.h"
 #include "animation.h"
@@ -2958,10 +2957,8 @@ void Unit_UpdateMap(uint16 type, Unit *unit)
 
 	if (type == 1) {
 		if (unit->o.type != UNIT_SANDWORM) {
-			PERF_SECTION_BEGIN(fogradius);
 			Tile_RemoveFogInRadius(House_GetAllies(Unit_GetHouseID(unit)),
 					UNVEILCAUSE_UNIT_UPDATE, position, Unit_GetFogUncoverRadius(unit->o.type, g_table_unitInfo[unit->o.type].o.fogUncoverRadius));
-			PERF_SECTION_END(fogradius, PERF_UNIT_FOGRADIUS);
 		}
 
 		if (Object_GetByPackedTile(packed) == NULL) {
@@ -2974,9 +2971,7 @@ void Unit_UpdateMap(uint16 type, Unit *unit)
 
 	if (unit->o.flags.s.bulletIsBig || unit->o.flags.s.isSmoking || (unit->o.type == UNIT_HARVESTER && unit->actionID == ACTION_HARVEST)) radius = 33;
 
-	PERF_SECTION_BEGIN(around);
 	Map_UpdateAround(radius, position, unit, g_functions[1][type]);
-	PERF_SECTION_END(around, PERF_UNIT_AROUND);
 
 	if (unit->o.type != UNIT_HARVESTER) return;
 

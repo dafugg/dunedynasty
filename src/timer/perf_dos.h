@@ -79,6 +79,10 @@ extern void Perf_Snapshot(PerfSnapshot *snap, enum PerfWindow window);
 
 extern double Perf_TicksToMs(uint64_t ticks);
 
+/* Per-mission summaries in DUNEDYN.LOG (video_dos.c). */
+extern void Perf_MissionStart(void);
+extern void Perf_MissionEnd(void);
+
 /* Fine-grained draw timing is on (DD_PROFILE). */
 extern bool g_perf_detail;
 
