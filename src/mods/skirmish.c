@@ -25,6 +25,7 @@
 #include "../tools/random_general.h"
 #include "../tools/random_lcg.h"
 #include "../video/video.h"
+#include "../video/video_poll.h"
 
 typedef struct {
 	int x, y;
@@ -1051,8 +1052,10 @@ Skirmish_GenerateMap2(bool only_landscape, SkirmishData *sd)
 	Skirmish_GenGeneral(seed);
 	Sprites_UnloadTiles();
 	Sprites_LoadTiles();
+	VIDEO_POLL_CURSOR();
 	Tools_RandomLCG_Seed(seed);
 	Map_CreateLandscape(seed, params, g_map);
+	VIDEO_POLL_CURSOR();
 
 	if (only_landscape)
 		return true;
@@ -1076,6 +1079,7 @@ Skirmish_GenerateMap2(bool only_landscape, SkirmishData *sd)
 
 	memset(sd->islandID, 0, MAP_SIZE_MAX * MAP_SIZE_MAX * sizeof(sd->islandID[0]));
 	Skirmish_DivideIsland(HOUSE_INVALID, 0, sd);
+	VIDEO_POLL_CURSOR();
 
 	if (sd->nislands_unused == 0)
 		return false;
@@ -1083,6 +1087,7 @@ Skirmish_GenerateMap2(bool only_landscape, SkirmishData *sd)
 	if (is_skirmish) {
 		if (!Skirmish_GenHouses(sd))
 			return false;
+		VIDEO_POLL_CURSOR();
 		if (!Skirmish_GenUnits(sd))
 			return false;
 	} else {
@@ -1175,6 +1180,7 @@ Skirmish_GenerateMap(enum MapGeneratorMode mode)
 	if (is_playable) {
 		Campaign_Load();
 		Skirmish_Prepare();
+		VIDEO_POLL_CURSOR();
 	}
 
 	bool success = Skirmish_GenerateMap1(is_playable);

@@ -27,6 +27,7 @@
 #include <string.h>
 #include "errorlog.h"
 #include "../common_dos.h"
+#include "video_poll.h"
 #include "../crashlog/runlog_dos.h"
 #include "../os/common.h"
 #include "../os/math.h"
@@ -854,6 +855,13 @@ VideoDOS_BlitSrc(const Src8 *src, int sx, int sy, int sw, int sh,
 	VideoDOS_ToScreen(dx, dy, &x1, &y1);
 	VideoDOS_ToScreen(dx + dw, dy + dh, &x2, &y2);
 	VideoDOS_BlitRect(src, sx, sy, sw, sh, x1, y1, x2, y2, flip, mode, lut, colour);
+}
+
+/* VIDEO_POLL_CURSOR (video_poll.h): long work outside drawing. */
+void
+VideoDOS_PollCursor(void)
+{
+	VideoDOS_UpdateCursor(false);
 }
 
 /* Shared by every draw: keep the cursor moving during slow frames. */
