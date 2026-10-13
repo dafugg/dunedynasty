@@ -65,6 +65,13 @@ Edit DUNEDYN.CFG ([graphics] section):
                Looks like 320x240, doubled; slower than 640x480 at 1x.
   320x200      Not playable yet: the sidebar has no room for build items.
 
+At 320x240 the build list shows one item at a time. Turn on the compact
+build list (Options and Extras > Gameplay > "Compact two-column build
+list", or compact_build_list=1 in the [enhancement] section): two columns
+of small icons, as many rows as fit (4 items at 320x240, about 20 at
+640x480). Ready items say READY, items being built show a percentage,
+items on hold a pause sign.
+
 Frame rates were measured in the 86Box emulator; real hardware will
 differ. Press F10 for the performance overlay (see PERFORMANCE OVERLAY
 AND LOG), F12 for a screenshot (SHOTnnnn.PCX).
@@ -101,7 +108,7 @@ These apply to one run only and are not saved to DUNEDYN.CFG.
 KEYS
 ----
 Map and view
-  Keypad 1-9         Scroll the map (arrow keys do not scroll)
+  Arrow keys         Scroll the map (also keypad 1-9 for diagonals)
   F4                 Jump to your base
   Tab                Cycle through your buildings
   Space              Centre on the selected building
@@ -212,8 +219,10 @@ with it full. The numbers are refreshed twice a second:
       CPU and clock (~ means estimated: 486s have no cycle counter),
       and screen size.
 
-Below 60 fps the game itself runs slower: Dune Dynasty runs at most one
-game step per frame. At 42 fps a DX2/66 plays at about 70% speed.
+The game keeps real time below 60 fps: game steps that fall due between
+frames are all run, so a slow machine shows fewer frames, not a slower
+game. "speed" stays near 100% unless the machine cannot keep up even
+with drawing skipped.
 
 Each run writes DUNEDYN.LOG in the game directory: what was detected
 (CPU, DOS, memory, VESA, mouse, sound and music hardware), the settings
