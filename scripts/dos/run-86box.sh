@@ -17,6 +17,7 @@
 #      CFG       game config file to use as DUNEDYN.CFG (e.g. scripts/dos/tests/320x200.cfg)
 #      PRESENT   "full" to send the whole screen every frame (default: changed spans only)
 #      PROFILE   GUI tick to start the frame time profile at (0)
+#      MEM       memory size in KB instead of the template's (e.g. 8192)
 #      AUTOSHOT  GUI tick(s) (1/60 s) to screenshot, comma separated (300); AUTOEXIT tick to exit (last AUTOSHOT + 5)
 
 set -eu
@@ -87,7 +88,7 @@ for f in $("$MTOOLS_BIN/mdir" -b -i "$PART" ::/DUNEDYN 2>/dev/null | grep -i 'SH
 	"$MTOOLS_BIN/mdel" -i "$PART" "$f"
 done
 
-sed "s|@HDD@|$IMG|" "$TEMPLATE" > "$VM_DIR/86box.cfg"
+sed -e "s|@HDD@|$IMG|" ${MEM:+-e "s|^mem_size = .*|mem_size = $MEM|"} "$TEMPLATE" > "$VM_DIR/86box.cfg"
 
 # ---- Run --------------------------------------------------------------------
 echo "Booting $MACHINE for up to ${SECONDS_TO_RUN}s..."

@@ -35,7 +35,7 @@ Bugs, fixes and features to offer upstream are tracked in
 | 2. 8bpp software renderer | Done, plus the speed work below | Rotated/scaled sprites and high-res overlays not supported; `rubblemask.png` is only used by the desktop renderer (effect not yet checked); faster 640x480 on 486s |
 | 3. Input and timer | Done, including real-time game speed below 60 fps | Mouse wheel and Ctrl/Alt/Shift combinations untested; mouse drivers other than CuteMouse |
 | 4. Audio | Done: Sound Blaster samples, real OPL2/OPL3, MPU-401 MIDI | Not measured in large battles; MP3 music packs for Pentium-class machines (optional) |
-| 5. Config, files, memory | Mostly done: `DUNEDYN.CFG`, run log, settings saved when the options menus close, DOS saves load | **8 MB machines** (needs about 10 MB now); loading desktop saves untested; CPU-tuned builds (`DOS_CPU` exists, only the 486 build is packaged) |
+| 5. Config, files, memory | Mostly done: `DUNEDYN.CFG`, run log, settings saved when the options menus close, DOS saves load | 16 MB minimum; 8 MB postponed (needs 10.4-11.5 MB, see Memory use); loading desktop saves untested; CPU-tuned builds (`DOS_CPU` exists, only the 486 build is packaged) |
 | 6. Skirmish | Works | CPU-scaling defaults (player count, unit caps) not exposed; more skirmish options (see features) |
 | 7. Multiplayer (Watt-32 + ENet) | Not started | Planned last |
 | 8. Upstream audit | Not started | OpenDUNE commits after the fork; recent gameflorist commits; upstream pull requests |
@@ -67,6 +67,102 @@ Bugs, fixes and features to offer upstream are tracked in
 - Test rig: 86Box machine templates, scripted input and screenshots,
   `DD_PROFILE` / `-profcoarse` timing, packaging to a share
   (`DOS_PUBLISH_DIRS`).
+
+## Memory use
+
+Dune II ran in about 2 MB. This port currently needs about 10.4 MB at
+320x240 (campaign) and 11.5 MB at 640x480 (skirmish), measured in
+86Box on 2026-10-13. On an 8 MB machine, CWSDPMI gets about 7 MB: the
+game used all of it before its graphics had finished loading, and
+exited without an error in the log.
+
+### Where it goes (320x240 campaign, Atreides mission 3)
+
+| What | MB | Notes |
+|---|---|---|
+| Program, before `main` | 3.6 | code 1.6 (Allegro 0.54, game 0.63, libc and C++ runtime 0.25, more with link-time optimisation); static data 1.25 (the fog-of-war table `g_mapVisible` alone is 0.42); stack 0.5 (DJGPP default) |
+| Sprite atlases | 2.8 | four 1024-wide 8bpp bitmaps: interface 860 rows, terrain tiles 596, units 559, map regions 600 |
+| Sound samples | 1.5 | 114 samples (one house's voices plus effects), loaded at mission start |
+| Graphics work buffer | 1.0 | `GFX_Init`'s 1024x1024 buffer, only needed at that size while building the atlases |
+| Screen buffers and caches | 0.5 | back and front buffers, terrain layer, interface cache, minimap |
+| Wasted while loading | 0.4-0.9 | each atlas starts at 1024x1024 and is trimmed into a new copy; the holes left behind are only partly reused |
+
+The peak is what counts:
+- All memory is locked at start-up (`_CRT0_FLAG_LOCK_MEMORY`,
+  `src/common_dos.c`) so that the timer, music and sound interrupts
+  never touch memory that has been swapped out. This also stops CWSDPMI
+  from using its swap file, so everything must fit in RAM.
+- DJGPP's heap never gives memory back, so the most ever allocated is
+  what has to fit.
+
+### Why so much more than Dune II
+
+- **Pre-drawn sprites instead of drawing from compressed data.** Dune II
+  kept its graphics compressed and decoded and recoloured them as it
+  drew. Dune Dynasty was written for GPUs: at start-up it decodes every
+  sprite into texture atlases, with a separate copy in each house's
+  colours (six) for units and buildings, plus copies of fonts in each
+  of their colours. The DOS port keeps the same design, with 8bpp
+  atlases instead of 32bpp textures.
+- **All of a mission's samples are loaded up front.** Voices and sound
+  effects are kept in memory for the whole mission (1.5 MB).
+- **32-bit code and a general library.** The game is written in
+  portable C, compiled for 32-bit protected mode, with Dune Dynasty's
+  extra features (skirmish, the improved AI, network code). Allegro
+  brings all of its video, sound and MIDI drivers.
+- **Tables sized for the general case.** Static arrays are sized for the
+  largest map and every house: the fog-of-war table keeps a cause and a
+  64-bit timeout per house for each of 4096 tiles (0.42 MB), and there
+  are network message buffers and backup unit and structure pools for
+  multiplayer.
+- **Higher resolutions.** Back buffers and caches grow with the screen:
+  about 1.1 MB more at 640x480 than at 320x240.
+- **DPMI overhead.** A 0.5 MB stack, page tables, and locked memory with
+  no swapping.
+
+### Measuring
+
+- `DUNEDYN.LOG` has a `Memory ...` line at each stage of start-up and at
+  each mission's start and end: physical memory in use, the change since
+  the last line, the most so far (sampled every 64 frames as well) and
+  the heap's use.
+- `MEM=8192 scripts/dos/run-86box.sh <machine>` runs a test machine with
+  8 MB.
+- Large allocations by caller: build with `-DDD_MEMTRACE` and link with
+  `-Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc` (each allocation of
+  4 KB or more goes to the log with its return address; match it
+  against `nm -n` of the executable).
+
+### Decision: 16 MB minimum, memory reduction postponed (2026-10-13)
+
+Machines of this era usually have 2, 4, 8 or 16 MB. DOS keeps the
+first megabyte, so an 8 MB machine leaves CWSDPMI about 7 MB, less any
+drivers and disk cache. Supporting 8 MB properly would mean getting
+well below 7 MB, not just under it, and even then 2 and 4 MB machines
+would stay out of reach. The plan below would at best reach about
+7.3-7.8 MB plus swapping, so 16 MB stays the minimum and this work is
+postponed. The plan is kept for reference.
+
+### Plan to fit 8 MB (estimated savings, postponed)
+
+1. Build each atlas at its final size, without the temporary
+   1024x1024 bitmaps: 0.4-0.9 MB.
+2. Shrink the graphics work buffer to the 320 KB the game needs once
+   the atlases are built: about 0.7 MB.
+3. Link only the Allegro drivers used, with Allegro's public driver-list
+   macros (Allegro itself unchanged): 0.1-0.3 MB.
+4. Recolour house-coloured units and buildings while drawing, as Dune
+   II did, instead of keeping six copies: probably over 1 MB, for a
+   table lookup per pixel on those sprites.
+5. Let CWSDPMI swap out large blocks that no interrupt reads (atlases,
+   map-screen graphics), keeping everything else locked. Machines with
+   enough memory behave as now.
+
+Steps 1-3 should give about 8.5-9 MB and step 4 about 7.3-7.8 MB, still
+more than the about 7 MB an 8 MB machine has free, so step 5 is needed
+as well. Other options, which change code shared with the desktop
+builds: a smaller fog-of-war table (about 0.3 MB) and loading voices
+when first played (up to 1.5 MB).
 
 ## Decisions pending
 
@@ -151,8 +247,7 @@ Bugs, fixes and features to offer upstream are tracked in
   test VM (compare with dynarec off, or the staged test VM).
 
 ### Platform and compatibility
-- 8 MB machines: tight atlas packing, free the 1 MB render buffer, lock
-  only interrupt-handler memory, trim the C++ runtime.
+- 8 MB machines: postponed; see Memory use.
 - Untested on DOS: later missions,
   large battles (frame rate and sound).
 
@@ -172,11 +267,12 @@ Bugs, fixes and features to offer upstream are tracked in
 
 1. Test pass (scripted 86Box runs), then the Windows cross-compile.
 2. Scripted 86Box test pass for the untested features.
-3. 8 MB support.
-4. Real-hardware runs on the user's machines.
-5. OpenDUNE and gameflorist audit.
-6. Gameplay features, starting with pathfinding or guard mode.
-7. Multiplayer.
+3. Real-hardware runs on the user's machines.
+4. OpenDUNE and gameflorist audit.
+5. Gameplay features, starting with pathfinding or guard mode.
+6. Multiplayer.
+
+8 MB support is postponed (see Memory use).
 
 ## Target machines
 
