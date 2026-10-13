@@ -193,9 +193,10 @@ Tested in the 86Box emulator (486 and Pentium machines, MS-DOS 6.22):
   (checked by counting the notes sent; not listened to on a real
   sound module yet).
 
-Not yet tested on DOS: Dune Dynasty's extra controls (drag selection,
-control groups, build queues, rally points, right button panning),
-placing buildings, saving and loading, later missions.
+Tested on DOS: Dune Dynasty's extra controls (drag selection, control
+groups, build queues, rally points), placing buildings, saving and
+loading. Not yet tested: right button panning, missions after the
+third, large battles.
 
 PERFORMANCE OVERLAY AND LOG
 ---------------------------
