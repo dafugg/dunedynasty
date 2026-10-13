@@ -44,3 +44,4 @@ node_modules
 .vscode
 build-dos/
 build-dos-prof/
+build-win64/
