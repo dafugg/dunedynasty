@@ -655,10 +655,13 @@ VideoA5_Tick(void)
 
 		/* Don't clobber the current font state. */
 		int len = snprintf(str, sizeof(str), "FPS:%4.2f", l_last_fps);
+		const enum ScreenDivID div = A5_SaveTransform();
+		A5_UseTransform(SCREENDIV_MAIN);
 		for (int i = 0; i < len; i++) {
 			const unsigned char c = str[i];
 			al_draw_tinted_bitmap(s_font[2][c], paltoRGB[15], 2 + 6 * i, 40, 0);
 		}
+		A5_UseTransform(div);
 
 		l_fps++;
 		if (curr_time - l_last_time >= 0.5f) {
