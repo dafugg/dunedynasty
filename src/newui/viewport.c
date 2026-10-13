@@ -6,6 +6,9 @@
 #include "../os/math.h"
 
 #include "viewport.h"
+#ifdef __DJGPP__
+#include "../video/terraincache_dos.h"
+#endif
 
 #include "menubar.h"
 #include "../audio/audio.h"
@@ -1073,6 +1076,13 @@ Viewport_DrawTilesInRange(int x0, int y0,
 
 	Video_HoldBitmapDrawing(true);
 
+#ifdef __DJGPP__
+	/* Only redraw cells that changed, into a kept terrain layer. */
+	const bool cached = draw_tile
+		&& VideoDOS_TerrainBegin(x0, y0, viewportX1, viewportY1,
+				(draw_fog ? 1 : 0) | (enhancement_fog_of_war ? 2 : 0));
+#endif
+
 	y = y0;
 	for (top = viewportY1; top < viewportY2; top += TILE_SIZE, y++) {
 		int curPos = Tile_PackXY(x0, y);
@@ -1080,6 +1090,23 @@ Viewport_DrawTilesInRange(int x0, int y0,
 		const FogOfWarTile *f = &g_mapVisible[curPos];
 
 		for (left = viewportX1; left < viewportX2; left += TILE_SIZE, curPos++, t++, f++) {
+#ifdef __DJGPP__
+			if (cached) {
+				/* Everything the cell's drawing below depends on. */
+				const TerrainKey key = {
+					.ground = f->groundSpriteID,
+					.overlay = f->overlaySpriteID,
+					.fog = f->fogSpriteID,
+					.debris = g_mapSpriteID[curPos],
+					.house = f->houseID,
+					.fogOverlay = enhancement_fog_of_war ? f->fogOverlayBits : 0,
+				};
+
+				if (!VideoDOS_TerrainCell(curPos, left, top, &key))
+					continue;
+			}
+#endif
+
 			if (draw_tile && (f->fogSpriteID != g_veiledSpriteID - 1) && (f->fogSpriteID != g_veiledSpriteID)) {
 				if (Viewport_TileIsDebris(f->groundSpriteID)) {
 					const uint16 iconID = g_mapSpriteID[curPos] & ~0x8000;
@@ -1111,6 +1138,11 @@ Viewport_DrawTilesInRange(int x0, int y0,
 			}
 		}
 	}
+
+#ifdef __DJGPP__
+	if (cached)
+		VideoDOS_TerrainEnd();
+#endif
 
 	Video_HoldBitmapDrawing(false);
 

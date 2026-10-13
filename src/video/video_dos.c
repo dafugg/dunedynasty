@@ -31,6 +31,8 @@
 #include "../os/common.h"
 #include "../os/math.h"
 
+#include "terraincache_dos.h"
+#include "uicache_dos.h"
 #include "video_dos.h"
 #include "video_a5.h"
 
@@ -233,6 +235,36 @@ static int s_cursor_mx, s_cursor_my, s_cursor_sprite;
 static int s_cursor_poll;               /* Blits until the next mouse check. */
 
 static void VideoDOS_UpdateCursor(bool force);
+static void VideoDOS_UpdateIntTransform(void);
+static BITMAP *s_terrain;               /* Viewport terrain layer (terraincache_dos.h). */
+
+/* After an in-game frame the back buffer is not cleared at once: the
+ * next in-game frame repaints every pixel (UI cache, terrain layer).
+ * Anything else clears it on its first draw (VideoDOS_TouchBackbuffer). */
+static bool s_pending_clear;
+static bool s_frame_ingame;             /* This frame began with the in-game UI. */
+static bool s_clear_skipped;            /* This frame relies on repainting everything. */
+static long s_deferred_clears;          /* DD_PROFILE: deferred clears that had to happen. */
+
+static inline void
+VideoDOS_TouchBackbuffer(void)
+{
+	if (s_pending_clear) {
+		s_pending_clear = false;
+		s_deferred_clears++;
+		if (g_dos_backbuffer != NULL)
+			clear_bitmap(g_dos_backbuffer);
+	}
+}
+
+/* Menubar and sidebar cache (uicache_dos.h). */
+#define UI_CACHE_TICKS      4       /* Redraw at least every 4/60 s. */
+
+static BITMAP *s_ui_cache;
+static bool s_ui_valid;
+static int64_t s_ui_tick;
+static unsigned int s_ui_serial;
+static int s_ui_rect[2][4];         /* Menubar, sidebar: x1, y1, x2, y2. */
 static PerfSnapshot s_overlay_last;
 static FadeInAux s_fadeInAux;
 
@@ -254,6 +286,8 @@ static bool s_profile_started;
 static PerfSnapshot s_profile_base;
 static long s_blit_calls[BLIT_SHIFT + 1];
 static long s_blit_pixels[BLIT_SHIFT + 1];
+static long s_blit_slow_calls[BLIT_SHIFT + 1];  /* Not an integer-scale fast path. */
+static long s_blit_slow_pixels[BLIT_SHIFT + 1];
 static uint64_t s_fill_ticks;       /* Total time in solid icon fills. */
 
 /* Timing each blit costs a few microseconds of port I/O, so only for
@@ -304,14 +338,48 @@ VideoDOS_SetDivBitmap(enum ScreenDivID div, int x, int y, int w, int h)
 	s_div_bitmap[div].cx2 = x + w;
 	s_div_bitmap[div].cy2 = y + h;
 
-	if (div == s_div)
+	if (div == s_div) {
+		VideoDOS_UpdateIntTransform();
 		VideoDOS_ApplyClip();
+	}
+}
+
+/* The current ScreenDiv as an integer transform, when its scale is a
+ * whole number (1 or 2 in practice): screen = origin + k * position.
+ * Same results as VideoDOS_ToScreen without float conversions, which
+ * cost a 486 about 50 cycles each. */
+static bool s_int_ok;
+static int s_int_ox, s_int_oy, s_int_kx, s_int_ky;
+
+static void
+VideoDOS_UpdateIntTransform(void)
+{
+	if (s_div == SCREENDIV_MAIN) {
+		s_int_ok = true;
+		s_int_ox = s_int_oy = 0;
+		s_int_kx = s_int_ky = 1;
+		return;
+	}
+
+	const ScreenDiv *div = &g_screenDiv[s_div];
+	s_int_kx = (int)div->scalex;
+	s_int_ky = (int)div->scaley;
+	s_int_ok = (s_int_kx >= 1 && s_int_ky >= 1 && (float)s_int_kx == div->scalex && (float)s_int_ky == div->scaley);
+
+	if (s_div == SCREENDIV_MENU || s_div == SCREENDIV_HUD) {
+		s_int_ox = div->x;
+		s_int_oy = div->y;
+	} else {
+		s_int_ox = s_div_bitmap[s_div].x;
+		s_int_oy = s_div_bitmap[s_div].y;
+	}
 }
 
 void
 VideoDOS_SetTransform(enum ScreenDivID div)
 {
 	s_div = div;
+	VideoDOS_UpdateIntTransform();
 	VideoDOS_ApplyClip();
 }
 
@@ -319,6 +387,8 @@ VideoDOS_SetTransform(enum ScreenDivID div)
 void
 VideoDOS_ToScreen(float x, float y, int *sx, int *sy)
 {
+	VideoDOS_TouchBackbuffer();
+
 	if (s_div == SCREENDIV_MAIN) {
 		*sx = (int)x;
 		*sy = (int)y;
@@ -654,18 +724,16 @@ VideoDOS_BlitScaledInt(const Src8 *src, int sx, int sy, int x1, int y1,
  * flip: bit 0 horizontal, bit 1 vertical.
  */
 static void
-VideoDOS_BlitSrc(const Src8 *src, int sx, int sy, int sw, int sh,
-		float dx, float dy, float dw, float dh, int flip,
+VideoDOS_BlitRect(const Src8 *src, int sx, int sy, int sw, int sh,
+		int x1, int y1, int x2, int y2, int flip,
 		enum BlitMode mode, const unsigned char *lut, int colour)
 {
+	VideoDOS_TouchBackbuffer();
+
 	BITMAP *dst = g_dos_backbuffer;
-	int x1, y1, x2, y2;
 
 	if (sw <= 0 || sh <= 0)
 		return;
-
-	VideoDOS_ToScreen(dx, dy, &x1, &y1);
-	VideoDOS_ToScreen(dx + dw, dy + dh, &x2, &y2);
 
 	const int full_w = x2 - x1;
 	const int full_h = y2 - y1;
@@ -693,6 +761,9 @@ VideoDOS_BlitSrc(const Src8 *src, int sx, int sy, int sw, int sh,
 		VideoDOS_BlitScaledInt(src, sx, sy, x1, y1, cx1, cy1, cx2, cy2, kx, ky, mode, lut, colour);
 		return;
 	}
+
+	s_blit_slow_calls[mode]++;
+	s_blit_slow_pixels[mode] += out_w * (cy2 - cy1);
 
 	/* Source column for each destination column. */
 	static int xmap[2048];
@@ -760,6 +831,29 @@ VideoDOS_BlitSrc(const Src8 *src, int sx, int sy, int sw, int sh,
 	}
 }
 
+/* Float coordinates in the current ScreenDiv. */
+static void
+VideoDOS_BlitSrc(const Src8 *src, int sx, int sy, int sw, int sh,
+		float dx, float dy, float dw, float dh, int flip,
+		enum BlitMode mode, const unsigned char *lut, int colour)
+{
+	int x1, y1, x2, y2;
+
+	VideoDOS_ToScreen(dx, dy, &x1, &y1);
+	VideoDOS_ToScreen(dx + dw, dy + dh, &x2, &y2);
+	VideoDOS_BlitRect(src, sx, sy, sw, sh, x1, y1, x2, y2, flip, mode, lut, colour);
+}
+
+/* Shared by every draw: keep the cursor moving during slow frames. */
+static inline void
+VideoDOS_BlitPoll(void)
+{
+	if (--s_cursor_poll < 0) {
+		s_cursor_poll = 32;
+		VideoDOS_UpdateCursor(false);
+	}
+}
+
 static void
 VideoDOS_Blit(BITMAP *bmp, int sx, int sy, int sw, int sh,
 		float dx, float dy, float dw, float dh, int flip,
@@ -769,12 +863,7 @@ VideoDOS_Blit(BITMAP *bmp, int sx, int sy, int sw, int sh,
 		return;
 
 	const Src8 src = VideoDOS_SrcFromBitmap(bmp);
-
-	/* Move the cursor while a slow frame is being drawn. */
-	if (--s_cursor_poll < 0) {
-		s_cursor_poll = 32;
-		VideoDOS_UpdateCursor(false);
-	}
+	VideoDOS_BlitPoll();
 
 	if (s_time_blits) {
 		const uint64_t t0 = Perf_Now();
@@ -785,14 +874,40 @@ VideoDOS_Blit(BITMAP *bmp, int sx, int sy, int sw, int sh,
 	}
 }
 
+/**
+ * Source region (sx, sy, sw, sh) at its natural size, at integer
+ * position (x, y) in the current ScreenDiv: the common case (tiles,
+ * sprites, glyphs), without float conversions when the scale is whole.
+ */
+static void
+VideoDOS_BlitAt(BITMAP *bmp, int sx, int sy, int sw, int sh, int x, int y,
+		int flip, enum BlitMode mode, const unsigned char *lut, int colour)
+{
+	if (!s_int_ok || s_time_blits) {
+		VideoDOS_Blit(bmp, sx, sy, sw, sh, x, y, sw, sh, flip, mode, lut, colour);
+		return;
+	}
+
+	if (bmp == NULL)
+		return;
+
+	const Src8 src = VideoDOS_SrcFromBitmap(bmp);
+	VideoDOS_BlitPoll();
+
+	const int x1 = s_int_ox + x * s_int_kx;
+	const int y1 = s_int_oy + y * s_int_ky;
+	VideoDOS_BlitRect(&src, sx, sy, sw, sh, x1, y1, x1 + sw * s_int_kx, y1 + sh * s_int_ky,
+			flip, mode, lut, colour);
+}
+
 /* Draw a whole bitmap at its natural size in the current ScreenDiv. */
 static void
-VideoDOS_Draw(BITMAP *bmp, float x, float y, int flip, enum BlitMode mode, const unsigned char *lut, int colour)
+VideoDOS_Draw(BITMAP *bmp, int x, int y, int flip, enum BlitMode mode, const unsigned char *lut, int colour)
 {
 	if (bmp == NULL)
 		return;
 
-	VideoDOS_Blit(bmp, 0, 0, bmp->w, bmp->h, x, y, bmp->w, bmp->h, flip, mode, lut, colour);
+	VideoDOS_BlitAt(bmp, 0, 0, bmp->w, bmp->h, x, y, flip, mode, lut, colour);
 }
 
 /*--------------------------------------------------------------*/
@@ -1004,11 +1119,13 @@ VideoA5_Init(void)
 	if (getenv("DD_PROFILE") != NULL) {
 		s_profile_start_tick = atol(getenv("DD_PROFILE"));
 		s_profiling = true;
-		g_perf_detail = true;
+		/* -profcoarse: frame totals only, without the cost of timing
+		 * every blit and draw section. */
+		g_perf_detail = !DOS_HasArg("profcoarse");
 	}
 
 	s_overlay = DOS_HasArg("overlay") ? OVERLAY_FULL : OVERLAY_OFF;
-	s_time_blits = s_profiling;
+	s_time_blits = g_perf_detail;
 
 	return true;
 }
@@ -1061,7 +1178,7 @@ VideoA5_Uninit(void)
 	VideoDOS_UninitCPSStore();
 
 	BITMAP **bitmaps[] = {
-		&scratch, &s_front, &s_overlay_bmp, &s_cursor_bmp, &s_minimap, &interface_texture, &icon_texture,
+		&scratch, &s_front, &s_overlay_bmp, &s_cursor_bmp, &s_ui_cache, &s_terrain, &s_minimap, &interface_texture, &icon_texture,
 		&shape_texture, &mentat_texture, &region_texture, &g_dos_backbuffer
 	};
 
@@ -1162,7 +1279,10 @@ VideoDOS_PollAutomation(void)
 		s_frame = 0;
 		Perf_Snapshot(&s_profile_base, PERF_WINDOW_PROFILE);
 		s_fill_ticks = 0;
+		s_deferred_clears = 0;
 		memset(s_blit_calls, 0, sizeof(s_blit_calls));
+		memset(s_blit_slow_calls, 0, sizeof(s_blit_slow_calls));
+		memset(s_blit_slow_pixels, 0, sizeof(s_blit_slow_pixels));
 		memset(s_blit_pixels, 0, sizeof(s_blit_pixels));
 		printf("DD_PROFILE: started at tick %ld\n", (long)ticks);
 	}
@@ -1203,11 +1323,13 @@ VideoDOS_PollAutomation(void)
 					{ PERF_DRAW_MINIMAP, "(minimap)" }, { PERF_DRAW_VIEWPORT, "(viewport)" },
 					{ PERF_DRAW_CHAT, "chat" }, { PERF_DRAW_SCREEN, "(drawscreen)" },
 					{ PERF_DRAW_INTERFACE, "(interface)" },
+					{ PERF_UNIT_FOGRADIUS, "[unit fog radius]" }, { PERF_UNIT_AROUND, "[unit around]" },
 				};
 				printf("DD_PROFILE: draw parts, ms/frame:");
 				for (unsigned int i = 0; i < sizeof(parts) / sizeof(parts[0]); i++)
 					printf(" %s %.2f", parts[i].name, PROFILE_MS(parts[i].c));
 				printf("\n");
+				printf("DD_PROFILE: %.2f deferred back buffer clears per frame\n", s_deferred_clears / frames);
 				printf("DD_PROFILE: music interrupts %.2f%% of the CPU\n",
 					100.0 * (now.ticks[PERF_IRQ_MUSIC] - s_profile_base.ticks[PERF_IRQ_MUSIC]) / (double)(now.time - s_profile_base.time));
 
@@ -1215,8 +1337,9 @@ VideoDOS_PollAutomation(void)
 				for (int m = 0; m <= BLIT_SHIFT; m++) {
 					if (s_blit_calls[m] == 0)
 						continue;
-					printf("DD_PROFILE:   %-6s %6.1f calls/frame %8.0f pixels/frame\n",
-						names[m], s_blit_calls[m] / frames, s_blit_pixels[m] / frames);
+					printf("DD_PROFILE:   %-6s %6.1f calls/frame %8.0f pixels/frame, slow path %5.1f calls %7.0f pixels\n",
+						names[m], s_blit_calls[m] / frames, s_blit_pixels[m] / frames,
+						s_blit_slow_calls[m] / frames, s_blit_slow_pixels[m] / frames);
 				}
 			}
 #undef PROFILE_MS
@@ -1230,6 +1353,7 @@ VideoDOS_PollAutomation(void)
 void
 VideoA5_ClearScreen(void)
 {
+	s_pending_clear = false;
 	clear_bitmap(g_dos_backbuffer);
 }
 
@@ -1351,6 +1475,212 @@ VideoDOS_RenderOverlay(void)
 	clear_to_color(s_overlay_bmp, 0);
 	for (int i = 0; i < lines; i++)
 		VideoDOS_OverlayText(s_overlay_bmp, scale, (i * 8 + 1) * scale, scale, text[i]);
+}
+
+/*--------------------------------------------------------------*/
+
+/* Terrain layer (terraincache_dos.h).  Same size as the back buffer so
+ * that coordinates are shared; keys are per map tile. */
+static BITMAP *s_terrain_saved_bb;      /* Real back buffer while drawing terrain. */
+static TerrainKey s_terrain_key[MAP_SIZE_MAX * MAP_SIZE_MAX];
+static uint16 s_terrain_gen[MAP_SIZE_MAX * MAP_SIZE_MAX];
+static uint16 s_terrain_curr_gen;
+static int s_terrain_geometry[12];
+static int s_terrain_rect[4];           /* Viewport on screen: x1, y1, x2, y2. */
+static bool s_terrain_active;
+
+static void
+VideoDOS_TerrainInvalidate(void)
+{
+	/* Generation 0 is never current, so a wrap clears everything. */
+	if (++s_terrain_curr_gen == 0) {
+		memset(s_terrain_gen, 0, sizeof(s_terrain_gen));
+		s_terrain_curr_gen = 1;
+	}
+}
+
+/**
+ * Start the viewport tile pass.  mode: anything else that changes how
+ * cells are drawn (fog options).
+ * @return true if the cache is in use; draws now go to the terrain layer.
+ */
+bool
+VideoDOS_TerrainBegin(int x0, int y0, int viewportX1, int viewportY1, int mode)
+{
+	if (g_dos_backbuffer == NULL || s_div != SCREENDIV_VIEWPORT || !s_int_ok || s_time_blits) {
+		/* The tile pass expects a cleared viewport. */
+		if (s_clear_skipped && g_dos_backbuffer != NULL) {
+			rectfill(g_dos_backbuffer, s_div_bitmap[s_div].cx1, s_div_bitmap[s_div].cy1,
+					s_div_bitmap[s_div].cx2 - 1, s_div_bitmap[s_div].cy2 - 1, 0);
+		}
+		return false;
+	}
+
+	if (s_terrain == NULL || s_terrain->w != g_dos_backbuffer->w || s_terrain->h != g_dos_backbuffer->h) {
+		if (s_terrain != NULL)
+			destroy_bitmap(s_terrain);
+		s_terrain = create_bitmap_ex(8, g_dos_backbuffer->w, g_dos_backbuffer->h);
+		if (s_terrain == NULL)
+			return false;
+		memset(s_terrain_geometry, 0, sizeof(s_terrain_geometry));
+		VideoDOS_TerrainInvalidate();
+	}
+
+	const int geometry[12] = {
+		x0, y0, viewportX1, viewportY1, mode,
+		s_int_ox, s_int_oy, s_int_kx, s_int_ky,
+		s_div_bitmap[s_div].cx1, s_div_bitmap[s_div].cy1, s_div_bitmap[s_div].cx2 * 4096 + s_div_bitmap[s_div].cy2
+	};
+
+	s_terrain_rect[0] = s_div_bitmap[s_div].cx1;
+	s_terrain_rect[1] = s_div_bitmap[s_div].cy1;
+	s_terrain_rect[2] = s_div_bitmap[s_div].cx2;
+	s_terrain_rect[3] = s_div_bitmap[s_div].cy2;
+
+	if (memcmp(geometry, s_terrain_geometry, sizeof(geometry)) != 0) {
+		memcpy(s_terrain_geometry, geometry, sizeof(geometry));
+		VideoDOS_TerrainInvalidate();
+
+		/* Outside the map stays as cleared. */
+		rectfill(s_terrain, s_terrain_rect[0], s_terrain_rect[1], s_terrain_rect[2] - 1, s_terrain_rect[3] - 1, 0);
+	}
+
+	s_terrain_saved_bb = g_dos_backbuffer;
+	g_dos_backbuffer = s_terrain;
+	VideoDOS_ApplyClip();
+	s_terrain_active = true;
+	return true;
+}
+
+/**
+ * @return true if the cell at (left, top) in the viewport must be
+ *   drawn: it changed since it was last drawn.  It is then cleared, as
+ *   the tile pass expects a cleared buffer.
+ */
+bool
+VideoDOS_TerrainCell(uint16 packed, int left, int top, const TerrainKey *key)
+{
+	if (!s_terrain_active)
+		return true;
+
+	if (s_terrain_gen[packed] == s_terrain_curr_gen && memcmp(&s_terrain_key[packed], key, sizeof(*key)) == 0)
+		return false;
+
+	s_terrain_key[packed] = *key;
+	s_terrain_gen[packed] = s_terrain_curr_gen;
+
+	const int x1 = max(s_int_ox + left * s_int_kx, s_terrain->cl);
+	const int y1 = max(s_int_oy + top * s_int_ky, s_terrain->ct);
+	const int x2 = min(s_int_ox + (left + TILE_SIZE) * s_int_kx, s_terrain->cr);
+	const int y2 = min(s_int_oy + (top + TILE_SIZE) * s_int_ky, s_terrain->cb);
+
+	if (x1 < x2 && y1 < y2)
+		rectfill(s_terrain, x1, y1, x2 - 1, y2 - 1, 0);
+
+	return true;
+}
+
+void
+VideoDOS_TerrainEnd(void)
+{
+	if (!s_terrain_active)
+		return;
+
+	s_terrain_active = false;
+	g_dos_backbuffer = s_terrain_saved_bb;
+	VideoDOS_ApplyClip();
+
+	const int *r = s_terrain_rect;
+	if (r[2] > r[0] && r[3] > r[1])
+		blit(s_terrain, g_dos_backbuffer, r[0], r[1], r[0], r[1], r[2] - r[0], r[3] - r[1]);
+}
+
+/*--------------------------------------------------------------*/
+
+static void
+VideoDOS_UIRects(int rect[2][4])
+{
+	static const enum ScreenDivID divs[2] = { SCREENDIV_MENUBAR, SCREENDIV_SIDEBAR };
+
+	for (int i = 0; i < 2; i++) {
+		const ScreenDiv *div = &g_screenDiv[divs[i]];
+
+		rect[i][0] = max(0, div->x);
+		rect[i][1] = max(0, div->y);
+		rect[i][2] = min(g_dos_backbuffer->w, (int)(div->x + div->width * div->scalex + 0.5f));
+		rect[i][3] = min(g_dos_backbuffer->h, (int)(div->y + div->height * div->scaley + 0.5f));
+	}
+}
+
+/**
+ * @return true if the menubar and sidebar must be drawn this frame;
+ *   otherwise the last drawing has been copied back.
+ */
+bool
+VideoDOS_UIBegin(void)
+{
+	if (g_dos_backbuffer == NULL)
+		return true;
+
+	/* An in-game frame repaints the whole screen: skip the clear. */
+	s_frame_ingame = true;
+	if (s_pending_clear) {
+		s_pending_clear = false;
+		s_clear_skipped = true;
+	}
+
+	if (s_ui_cache == NULL || s_ui_cache->w != g_dos_backbuffer->w || s_ui_cache->h != g_dos_backbuffer->h) {
+		if (s_ui_cache != NULL)
+			destroy_bitmap(s_ui_cache);
+		s_ui_cache = create_bitmap_ex(8, g_dos_backbuffer->w, g_dos_backbuffer->h);
+		s_ui_valid = false;
+		if (s_ui_cache == NULL)
+			return true;
+	}
+
+	int rect[2][4];
+	VideoDOS_UIRects(rect);
+
+	const int64_t now = Timer_GetTicks();
+	if (!s_ui_valid
+			|| g_dos_input_serial != s_ui_serial
+			|| now - s_ui_tick >= UI_CACHE_TICKS || now < s_ui_tick
+			|| memcmp(rect, s_ui_rect, sizeof(rect)) != 0) {
+		if (s_clear_skipped) {
+			for (int i = 0; i < 2; i++) {
+				if (rect[i][2] > rect[i][0] && rect[i][3] > rect[i][1])
+					rectfill(g_dos_backbuffer, rect[i][0], rect[i][1], rect[i][2] - 1, rect[i][3] - 1, 0);
+			}
+		}
+		return true;
+	}
+
+	for (int i = 0; i < 2; i++) {
+		const int *r = s_ui_rect[i];
+		if (r[2] > r[0] && r[3] > r[1])
+			blit(s_ui_cache, g_dos_backbuffer, r[0], r[1], r[0], r[1], r[2] - r[0], r[3] - r[1]);
+	}
+
+	return false;
+}
+
+void
+VideoDOS_UIStore(void)
+{
+	if (s_ui_cache == NULL || g_dos_backbuffer == NULL)
+		return;
+
+	VideoDOS_UIRects(s_ui_rect);
+
+	for (int i = 0; i < 2; i++) {
+		const int *r = s_ui_rect[i];
+		if (r[2] > r[0] && r[3] > r[1])
+			blit(g_dos_backbuffer, s_ui_cache, r[0], r[1], r[0], r[1], r[2] - r[0], r[3] - r[1]);
+	}
+
+	s_ui_valid = true;
+	s_ui_tick = Timer_GetTicks();
+	s_ui_serial = g_dos_input_serial;
 }
 
 /* Where the cursor should be, in screen pixels. */
@@ -1624,6 +1954,9 @@ VideoDOS_UpdateHardwarePalette(void)
 void
 VideoA5_Tick(void)
 {
+	/* A frame that drew nothing still shows a cleared screen. */
+	VideoDOS_TouchBackbuffer();
+
 	const enum ScreenDivID div = A5_SaveTransform();
 	A5_UseTransform(SCREENDIV_MAIN);
 
@@ -1678,7 +2011,13 @@ VideoA5_Tick(void)
 	/* As Allegro 5: every frame is drawn from scratch. */
 	const uint64_t t1 = Perf_Now();
 	set_clip_rect(g_dos_backbuffer, 0, 0, g_dos_backbuffer->w - 1, g_dos_backbuffer->h - 1);
-	clear_bitmap(g_dos_backbuffer);
+	if (s_frame_ingame) {
+		s_pending_clear = true;
+	} else {
+		clear_bitmap(g_dos_backbuffer);
+	}
+	s_frame_ingame = false;
+	s_clear_skipped = false;
 	VideoDOS_ApplyClip();
 	Perf_Add(PERF_CLEAR, (uint32_t)(Perf_Now() - t1));
 }
@@ -1760,6 +2099,7 @@ Video_UngrabCursor(void)
 void
 Video_ShadeScreen(int alpha)
 {
+	VideoDOS_TouchBackbuffer();
 	const unsigned char *lut = VideoDOS_ShadeTable(clamp(0x00, alpha, 0xFF));
 	BITMAP *bb = g_dos_backbuffer;
 
@@ -2345,11 +2685,11 @@ VideoA5_DrawIcon(uint16 iconID, enum HouseType houseID, int x, int y)
 			break;
 
 		case ICON_OPAQUE:
-			VideoDOS_Blit(icon_texture, coord->sx, coord->sy, TILE_SIZE, TILE_SIZE, x, y, TILE_SIZE, TILE_SIZE, 0, BLIT_OPAQUE, NULL, 0);
+			VideoDOS_BlitAt(icon_texture, coord->sx, coord->sy, TILE_SIZE, TILE_SIZE, x, y, 0, BLIT_OPAQUE, NULL, 0);
 			break;
 
 		default:
-			VideoDOS_Blit(icon_texture, coord->sx, coord->sy, TILE_SIZE, TILE_SIZE, x, y, TILE_SIZE, TILE_SIZE, 0, BLIT_MASKED, NULL, 0);
+			VideoDOS_BlitAt(icon_texture, coord->sx, coord->sy, TILE_SIZE, TILE_SIZE, x, y, 0, BLIT_MASKED, NULL, 0);
 			break;
 	}
 }
@@ -2363,7 +2703,7 @@ VideoA5_DrawIconAlpha(uint16 iconID, int x, int y, unsigned char alpha)
 	assert(coord->sx != 0 && coord->sy != 0);
 
 	/* Black icon at alpha (fog of war): darken what is underneath. */
-	VideoDOS_Blit(icon_texture, coord->sx, coord->sy, TILE_SIZE, TILE_SIZE, x, y, TILE_SIZE, TILE_SIZE,
+	VideoDOS_BlitAt(icon_texture, coord->sx, coord->sy, TILE_SIZE, TILE_SIZE, x, y,
 			0, BLIT_SHADE, VideoDOS_ShadeTable(alpha), 0);
 }
 
@@ -3066,6 +3406,9 @@ VideoA5_InitSprites(void)
 
 	memset(buf, 0, WINDOW_W * WINDOW_H);
 	VideoDOS_InitIcons(buf);
+	/* New icon graphics: the kept terrain layer is stale. */
+	memset(s_terrain_geometry, 0, sizeof(s_terrain_geometry));
+	VideoDOS_TerrainInvalidate();
 
 	memset(buf, 0, WINDOW_W * WINDOW_H);
 	VideoDOS_InitShapes(buf);
@@ -3097,6 +3440,8 @@ VideoA5_InitSprites(void)
 void
 VideoA5_DisplayFound(void)
 {
+	memset(s_terrain_geometry, 0, sizeof(s_terrain_geometry));
+	VideoDOS_TerrainInvalidate();
 	VideoDOS_UninitCPSStore();
 	memset(s_minimap_colour, 0, sizeof(s_minimap_colour));
 }

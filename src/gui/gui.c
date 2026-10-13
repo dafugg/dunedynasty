@@ -14,6 +14,9 @@
 
 #include "gui.h"
 #include "../timer/perf.h"
+#ifdef __DJGPP__
+#include "../video/uicache_dos.h"
+#endif
 
 #include "font.h"
 #include "mentat.h"
@@ -1277,14 +1280,30 @@ void GUI_DrawInterfaceAndRadar(void)
 	PERF_SECTION_BEGIN(iface);
 	oldScreenID = GFX_Screen_SetActive((screenID == SCREEN_0) ? SCREEN_1 : screenID);
 
-	PERF_SECTION_BEGIN(menubar);
-	MenuBar_Draw(g_playerHouseID);
-	PERF_SECTION_END(menubar, PERF_DRAW_MENUBAR);
+#ifdef __DJGPP__
+	/* The menubar and sidebar are cached between redraws. */
+	if (VideoDOS_UIBegin())
+#endif
+	{
+		PERF_SECTION_BEGIN(menubar);
+		MenuBar_Draw(g_playerHouseID);
+		PERF_SECTION_END(menubar, PERF_DRAW_MENUBAR);
 
-	PERF_SECTION_BEGIN(sidebar);
-	A5_UseTransform(SCREENDIV_SIDEBAR);
-	GUI_Widget_ActionPanel_Draw(true);
-	PERF_SECTION_END(sidebar, PERF_DRAW_SIDEBAR);
+		PERF_SECTION_BEGIN(sidebar);
+		A5_UseTransform(SCREENDIV_SIDEBAR);
+		GUI_Widget_ActionPanel_Draw(true);
+		PERF_SECTION_END(sidebar, PERF_DRAW_SIDEBAR);
+
+#ifdef __DJGPP__
+		VideoDOS_UIStore();
+#endif
+	}
+#ifdef __DJGPP__
+	else {
+		/* Drawing the status bar also advances its messages. */
+		GUI_DisplayText(NULL, 0);
+	}
+#endif
 
 	PERF_SECTION_BEGIN(screen);
 	GUI_DrawScreen(g_screenActiveID);
