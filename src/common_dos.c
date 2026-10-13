@@ -186,18 +186,21 @@ bool
 A5_Init(void)
 {
 	GameOptions_Load();
+	DOS_LogMemory("before setting the video mode");
 
 	if (!TimerDOS_Init())
 		return false;
 
 	if (!VideoA5_Init())
 		return false;
+	DOS_LogMemory("after setting the video mode");
 
 	/* After the video mode is set, so the mouse range matches the screen. */
 	if (!InputA5_Init())
 		return false;
 
 	AudioA5_Init();
+	DOS_LogMemory("after starting audio");
 
 	A5_InitTransform(true);
 
@@ -209,6 +212,7 @@ void
 A5_Uninit(void)
 {
 	VideoDOS_LogPerformance("Whole run");
+	DOS_LogMemory("at exit");
 	GameOptions_Save();
 
 	AudioA5_Uninit();

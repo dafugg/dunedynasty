@@ -1901,6 +1901,7 @@ Perf_MissionStart(void)
 		(g_campaign_selected == CAMPAIGNID_SKIRMISH) ? "skirmish" : "campaign",
 		g_table_houseInfo[g_playerHouseID].name, g_scenarioID);
 
+	DOS_LogMemory("at mission start");
 	Perf_Snapshot(&s_mission_base, PERF_WINDOW_MISSION);
 	Perf_ResetFrameTime();
 	s_mission_running = true;
@@ -1914,6 +1915,7 @@ Perf_MissionEnd(void)
 
 	s_mission_running = false;
 	VideoDOS_LogPerformanceSince("Mission", &s_mission_base, PERF_WINDOW_MISSION);
+	DOS_LogMemory("at mission end");
 }
 
 /**
@@ -2022,6 +2024,10 @@ VideoA5_Tick(void)
 	VideoDOS_UpdateCursor(true);
 	Perf_Add(PERF_PRESENT, (uint32_t)(Perf_Now() - t0));
 	Perf_AddFrame(bytes);
+
+	static unsigned s_mem_frames;
+	if ((++s_mem_frames & 63) == 0)
+		DOS_SampleMemory();
 
 	s_frame++;
 
@@ -3486,23 +3492,30 @@ VideoA5_InitSprites(void)
 	/* As VideoA5_ReadPalette("IBM.PAL"): start with the game palette. */
 	memcpy(s_game_palette, ibm, sizeof(PALETTE));
 
+	DOS_LogMemory("before loading graphics");
+
 	memset(buf, 0, WINDOW_W * WINDOW_H);
 	VideoDOS_InitIcons(buf);
+	DOS_LogMemory("after icons");
 	/* New icon graphics: the kept terrain layer is stale. */
 	memset(s_terrain_geometry, 0, sizeof(s_terrain_geometry));
 	VideoDOS_TerrainInvalidate();
 
 	memset(buf, 0, WINDOW_W * WINDOW_H);
 	VideoDOS_InitShapes(buf);
+	DOS_LogMemory("after shapes");
 
 	memset(buf, 0, WINDOW_W * WINDOW_H);
 	VideoDOS_InitCPS();
+	DOS_LogMemory("after CPS images");
 
 	memset(buf, 0, WINDOW_W * WINDOW_H);
 	VideoDOS_InitWSA();
+	DOS_LogMemory("after WSA animations");
 
 	memset(buf, 0, WINDOW_W * WINDOW_H);
 	VideoDOS_InitFonts(buf);
+	DOS_LogMemory("after fonts");
 
 	GFX_Screen_SetActive(oldScreenID);
 	Widget_SetCurrentWidget(old_widget);
@@ -3511,12 +3524,7 @@ VideoA5_InitSprites(void)
 	VideoDOS_TrimAtlas(&shape_texture);
 	VideoDOS_TrimAtlas(&region_texture);
 
-	_go32_dpmi_meminfo info;
-	if (_go32_dpmi_get_free_memory_information(&info) == 0) {
-		RunLog_Printf("Memory: %lu KB of %lu KB physical free after loading graphics\n",
-			(unsigned long)info.available_physical_pages * 4,
-			(unsigned long)info.total_physical_pages * 4);
-	}
+	DOS_LogMemory("after loading graphics");
 }
 
 void

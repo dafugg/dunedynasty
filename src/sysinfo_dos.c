@@ -10,6 +10,7 @@
 #include <dpmi.h>
 #include <go32.h>
 #include <stdio.h>
+#include <libc/malldbg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/movedata.h>
@@ -26,6 +27,11 @@
 
 extern int __crt0_argc;
 extern char **__crt0_argv;
+
+/* DOS_LogMemory: the least physical memory seen free, and the amount
+ * in use at the last report. */
+static unsigned long s_mem_least_free_kb = ~0ul;
+static unsigned long s_mem_last_used_kb;
 
 static void
 SysInfo_LogCommandLine(void)
@@ -78,9 +84,78 @@ SysInfo_LogMemory(void)
 		return;
 
 	const unsigned long total_kb = (unsigned long)info.total_physical_pages * 4;
+	s_mem_last_used_kb = total_kb - (unsigned long)info.available_physical_pages * 4;
 	RunLog_Printf("Memory: %lu KB physical, %lu KB free%s\n", total_kb,
 		(unsigned long)info.available_physical_pages * 4,
 		(total_kb < 12 * 1024) ? " (16 MB needed)" : "");
+}
+
+/*--------------------------------------------------------------*/
+/* Memory use: with all memory locked (common_dos.c), physical memory
+ * in use is what the program has ever taken; DJGPP's heap does not give
+ * memory back, so the most ever in use is what decides whether a
+ * machine has enough. */
+
+static bool
+SysInfo_MemoryKB(unsigned long *total_kb, unsigned long *free_kb)
+{
+	_go32_dpmi_meminfo info;
+
+	if (_go32_dpmi_get_free_memory_information(&info) != 0)
+		return false;
+
+	*total_kb = (unsigned long)info.total_physical_pages * 4;
+	*free_kb = (unsigned long)info.available_physical_pages * 4;
+	if (*free_kb < s_mem_least_free_kb)
+		s_mem_least_free_kb = *free_kb;
+	return true;
+}
+
+/* Debugging: built with -DDD_MEMTRACE and linked with
+ * -Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc, every allocation of
+ * 4 KB or more is logged with its caller's address (see DOS-PLAN.md). */
+#ifdef DD_MEMTRACE
+void *__real_malloc(size_t n);
+void *__real_calloc(size_t n, size_t m);
+void *__real_realloc(void *p, size_t n);
+static int s_in_trace;
+static void
+SysInfo_Trace(const char *what, size_t n, void *caller)
+{
+	if (n >= 4096 && !s_in_trace) {
+		s_in_trace = 1;
+		RunLog_Printf("MEMTRACE %s %lu %p\n", what, (unsigned long)n, caller);
+		s_in_trace = 0;
+	}
+}
+void *__wrap_malloc(size_t n) { SysInfo_Trace("m", n, __builtin_return_address(0)); return __real_malloc(n); }
+void *__wrap_calloc(size_t n, size_t m) { SysInfo_Trace("c", n * m, __builtin_return_address(0)); return __real_calloc(n, m); }
+void *__wrap_realloc(void *p, size_t n) { SysInfo_Trace("r", n, __builtin_return_address(0)); return __real_realloc(p, n); }
+#endif
+
+/* Called now and then while playing, to catch the peak. */
+void
+DOS_SampleMemory(void)
+{
+	unsigned long total_kb, free_kb;
+	SysInfo_MemoryKB(&total_kb, &free_kb);
+}
+
+void
+DOS_LogMemory(const char *when)
+{
+	unsigned long total_kb, free_kb;
+
+	if (!SysInfo_MemoryKB(&total_kb, &free_kb))
+		return;
+
+	const struct mallinfo mi = mallinfo();
+	const unsigned long used_kb = total_kb - free_kb;
+
+	RunLog_Printf("Memory %s: %lu KB used (%+ld), most %lu KB; heap %d KB in use of %d KB\n",
+		when, used_kb, (long)used_kb - (long)s_mem_last_used_kb,
+		total_kb - s_mem_least_free_kb, mi.uordblks / 1024, mi.arena / 1024);
+	s_mem_last_used_kb = used_kb;
 }
 
 /* Read an ASCIIZ string at a real-mode far pointer. */
