@@ -16,6 +16,7 @@
 #include "../input/input.h"
 #include "../input/mouse.h"
 #include "../timer/timer_dos.h"
+#include "../video/uicache_dos.h"
 #include "../video/video.h"
 #include "scancode.h"
 
@@ -173,6 +174,8 @@ InputDOS_ProcessKey(unsigned char raw)
 	return false;
 }
 
+unsigned int g_dos_input_serial;
+
 static bool
 InputDOS_ProcessMouse(bool apply_mouse_transform)
 {
@@ -228,6 +231,8 @@ InputDOS_ProcessMouse(bool apply_mouse_transform)
 		if ((b & mask) == 0)
 			state |= SCANCODE_RELEASE;
 
+		g_dos_input_serial++;
+
 		if (g_mousePanning) {
 			Mouse_EventHandler(false, g_mouseX, g_mouseY, 0, state);
 		} else {
@@ -256,6 +261,7 @@ InputA5_Tick(bool apply_mouse_transform)
 		const unsigned char raw = s_key_queue[s_key_tail & (KEY_QUEUE_SIZE - 1)];
 		s_key_tail++;
 
+		g_dos_input_serial++;
 		if (InputDOS_ProcessKey(raw))
 			redraw = true;
 	}

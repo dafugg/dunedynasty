@@ -39,6 +39,8 @@ enum PerfCounter {
 	PERF_DRAW_CHAT,
 	PERF_DRAW_SCREEN,       /* GUI_DrawScreen: fog update + viewport. */
 	PERF_DRAW_INTERFACE,    /* GUI_DrawInterfaceAndRadar, everything. */
+	PERF_UNIT_FOGRADIUS,    /* Unit_UpdateMap: Tile_RemoveFogInRadius (all callers). */
+	PERF_UNIT_AROUND,       /* Unit_UpdateMap: Map_UpdateAround (all callers). */
 
 	PERF_COUNTERS
 };
