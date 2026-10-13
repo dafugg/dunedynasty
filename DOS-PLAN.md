@@ -85,9 +85,11 @@ Bugs, fixes and features to offer upstream are tracked in
   on Windows (user's Windows 11 PC), and the Linux desktop build has
   not been built. Both before any upstream pull request.
   On Windows so far (user): runs to the menu; settings are kept across
-  restarts (our config reader); save games work both ways: a DOS save
-  loads and plays on Windows, and a Windows save loads and plays on DOS
-  (86Box, 2026-10-13).
+  restarts; save games work both ways: a DOS save loads and plays on
+  Windows, and a Windows save loads and plays on DOS (86Box, 2026-10-13).
+  Since then the desktop build uses upstream's Allegro 5 config, file and
+  menu code again (DOS gets them from `src/dos/a5compat/`, see
+  UPSTREAM.md), so a quick Windows re-check is due.
 - Settings that a command-line switch overrides for one run (`-res`,
   `-voices`, `-quality`, `-allaudio`) are saved with their pre-override
   values, so changing them in the options menu during that run is not
