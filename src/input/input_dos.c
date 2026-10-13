@@ -16,6 +16,18 @@
 #include "../input/input.h"
 #include "../input/mouse.h"
 #include "../timer/timer_dos.h"
+#include "../scenario.h"
+#include "../sprites.h"
+#include "../newui/viewport.h"
+#include "../opendune.h"
+#include "../tools/coord.h"
+#include "../map.h"
+#include "../unit.h"
+#include "../structure.h"
+#include "../gui/gui.h"
+#include "../pool/pool.h"
+#include "../pool/pool_unit.h"
+#include "../pool/pool_structure.h"
 #include "../video/uicache_dos.h"
 #include "../video/video.h"
 #include "scancode.h"
@@ -336,7 +348,14 @@ InputA5_WaitForEvent(bool apply_mouse_transform, bool *is_timer_event)
  *              the same script works at any screen resolution
  *   R<x>;<y>   right click
  *   M<x>;<y>   move the mouse
- *   K<hex>     press and release a Dune Dynasty scancode
+ *   K<hex>[;<n>]  press a Dune Dynasty scancode, release it after n
+ *              ticks (default 4)
+ *   H<hex>;<n> hold a scancode (e.g. Shift) for n ticks while the
+ *              following actions run
+ *   D<x1>;<y1>;<x2>;<y2>  drag with the left button from (x1, y1) to
+ *              (x2, y2)
+ *   S          centre the view on the player's construction yard (or
+ *              MCV) and left click it
  */
 void
 InputDOS_PollAutomation(int64_t ticks)
@@ -346,6 +365,10 @@ InputDOS_PollAutomation(int64_t ticks)
 	static enum Scancode s_release;
 	static int s_release_x, s_release_y;
 	static int64_t s_release_tick;
+	static enum Scancode s_hold;            /* H: modifier held alongside other actions. */
+	static int64_t s_hold_tick;
+	static int s_drag_x, s_drag_y;          /* D: where the held button moves to. */
+	static int64_t s_drag_tick;
 
 	if (!s_init) {
 		s_next = getenv("DD_AUTOINPUT");
@@ -384,6 +407,19 @@ InputDOS_PollAutomation(int64_t ticks)
 
 	/* Release what was pressed, after holding it for a few ticks so that
 	 * the game loop sees the button down (drag selection checks state). */
+	if (s_hold != 0 && ticks >= s_hold_tick) {
+		Input_EventHandler(s_hold | SCANCODE_RELEASE);
+		s_hold = 0;
+	}
+
+	if (s_drag_tick != 0 && ticks >= s_drag_tick) {
+		position_mouse(s_drag_x, s_drag_y);
+		s_mouse_x = mouse_x;
+		s_mouse_y = mouse_y;
+		Mouse_EventHandler(s_apply_mouse_transform, s_drag_x, s_drag_y, 0, 0);
+		s_drag_tick = 0;
+	}
+
 	if (s_release != 0) {
 		if (ticks < s_release_tick)
 			return;
@@ -413,27 +449,83 @@ InputDOS_PollAutomation(int64_t ticks)
 	const char action = end[1];
 	const char *arg = end + 2;
 
-	if (action == 'K') {
-		const enum Scancode sc = strtol(arg, NULL, 16);
+	if (action == 'H') {
+		/* H<hex scancode>;<ticks>: hold a key (e.g. Shift) while the
+		 * following actions run. */
+		s_hold = strtol(arg, &end, 16);
+		s_hold_tick = ticks + ((*end == ';') ? atoi(end + 1) : 4);
+		Input_EventHandler(s_hold);
+	} else if (action == 'K') {
+		/* K<hex scancode>[;<ticks held>] */
+		const enum Scancode sc = strtol(arg, &end, 16);
+		const int hold = (*end == ';') ? atoi(end + 1) : 4;
 		Input_EventHandler(sc);
 		s_release = sc;
-		s_release_tick = ticks + 4;
+		s_release_tick = ticks + hold;
 	} else {
-		/* Script coordinates are SCREENDIV_MENU (320x200) coordinates,
-		 * converted to screen pixels and then fed in exactly as the
-		 * hardware mouse would be. */
-		const ScreenDiv *menu = &g_screenDiv[SCREENDIV_MENU];
-		const int mx = strtol(arg, &end, 10);
-		const int my = (*end == ';') ? strtol(end + 1, NULL, 10) : 0;
-		const int x = menu->x + mx * menu->scalex;
-		const int y = menu->y + my * menu->scaley;
+		int x, y;
+
+		if (action == 'S') {
+			/* S: centre the view on the player's construction yard (or
+			 * MCV) and click it, wherever a random map put it.  The view
+			 * may stop at the map edge, so click where the object is. */
+			const ScreenDiv *vp = &g_screenDiv[SCREENDIV_VIEWPORT];
+			PoolFindStruct find;
+			int px = 0, py = 0;
+
+			const Structure *st = Structure_FindFirst(&find, g_playerHouseID, STRUCTURE_CONSTRUCTION_YARD);
+			if (st != NULL) {
+				px = (st->o.position.x >> 4) + TILE_SIZE;
+				py = (st->o.position.y >> 4) + TILE_SIZE;
+			} else {
+				const Unit *u = Unit_FindFirst(&find, g_playerHouseID, UNIT_MCV);
+				if (u != NULL) {
+					px = u->o.position.x >> 4;
+					py = u->o.position.y >> 4;
+				}
+			}
+
+			Scenario_CentreViewport(g_playerHouseID);
+			const int vx = TILE_SIZE * Tile_GetPackedX(g_viewportPosition) + g_viewport_scrollOffsetX;
+			const int vy = TILE_SIZE * Tile_GetPackedY(g_viewportPosition) + g_viewport_scrollOffsetY;
+			x = vp->x + (int)((px - vx) * vp->scalex);
+			y = vp->y + (int)((py - vy) * vp->scaley);
+		} else {
+			/* Script coordinates are SCREENDIV_MENU (320x200) coordinates,
+			 * converted to screen pixels and then fed in exactly as the
+			 * hardware mouse would be. */
+			const ScreenDiv *menu = &g_screenDiv[SCREENDIV_MENU];
+			const int mx = strtol(arg, &end, 10);
+			const int my = (*end == ';') ? strtol(end + 1, NULL, 10) : 0;
+			x = menu->x + mx * menu->scalex;
+			y = menu->y + my * menu->scaley;
+		}
 
 		position_mouse(x, y);
 		s_mouse_x = mouse_x;
 		s_mouse_y = mouse_y;
 
-		if (action == 'C' || action == 'R') {
-			const enum Scancode button = (action == 'C') ? SCANCODE_MOUSE_LMB : SCANCODE_MOUSE_RMB;
+		if (action == 'D') {
+			/* D<x1>;<y1>;<x2>;<y2>: drag with the left button. */
+			const ScreenDiv *menu = &g_screenDiv[SCREENDIV_MENU];
+			const char *p = strchr(arg, ';');
+			p = (p != NULL) ? strchr(p + 1, ';') : NULL;
+
+			if (p != NULL) {
+				const int mx2 = strtol(p + 1, &end, 10);
+				const int my2 = (*end == ';') ? strtol(end + 1, NULL, 10) : 0;
+				s_drag_x = menu->x + mx2 * menu->scalex;
+				s_drag_y = menu->y + my2 * menu->scaley;
+				s_drag_tick = ticks + 3;
+			}
+
+			Mouse_EventHandler(s_apply_mouse_transform, x, y, 0, SCANCODE_MOUSE_LMB);
+			s_release = SCANCODE_MOUSE_LMB;
+			s_release_x = s_drag_x;
+			s_release_y = s_drag_y;
+			s_release_tick = ticks + 8;
+		} else if (action == 'C' || action == 'R' || action == 'S') {
+			const enum Scancode button = (action == 'R') ? SCANCODE_MOUSE_RMB : SCANCODE_MOUSE_LMB;
 
 			Mouse_EventHandler(s_apply_mouse_transform, x, y, 0, button);
 			s_release = button;
@@ -442,7 +534,7 @@ InputDOS_PollAutomation(int64_t ticks)
 
 			/* Hold left for drag selection to notice; release right
 			 * quickly, as holding it pans the viewport. */
-			s_release_tick = ticks + ((action == 'C') ? 4 : 1);
+			s_release_tick = ticks + ((action == 'R') ? 1 : 4);
 		} else {
 			Mouse_EventHandler(s_apply_mouse_transform, x, y, 0, 0);
 		}
