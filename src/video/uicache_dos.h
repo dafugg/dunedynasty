@@ -11,6 +11,15 @@
 extern bool VideoDOS_UIBegin(void);
 extern void VideoDOS_UIStore(void);
 
+/* While the game is paused behind a hint or the options menu, the
+ * shaded game screen is kept and copied back instead of redrawn:
+ *
+ *   if (!VideoDOS_PausedBegin()) { draw the game screen; }
+ *   draw the overlay (its Video_ShadeScreen is skipped if restored);
+ *
+ * Any frame drawn without VideoDOS_PausedBegin() forgets the copy. */
+extern bool VideoDOS_PausedBegin(void);
+
 /* Changes on every key press and mouse button change (input_dos.c). */
 extern unsigned int g_dos_input_serial;
 

@@ -10,6 +10,7 @@
 
 #ifdef __DJGPP__
 #include "timer/perf_dos.h"
+#include "video/uicache_dos.h"
 #include "video/video_dos.h"
 #include "crashlog/runlog_dos.h"
 #define PROFILE_BEGIN()         const uint64_t profile_t0 = Perf_Now()
@@ -396,6 +397,18 @@ GameLoop_Client_ProcessInput(void)
 
 /*--------------------------------------------------------------*/
 
+/* The game is paused behind hints and the options menu (single player),
+ * so on MS-DOS its shaded screen is kept rather than redrawn. */
+static bool
+GameLoop_PausedBackground(void)
+{
+#ifdef __DJGPP__
+	if (g_host_type == HOSTTYPE_NONE)
+		return VideoDOS_PausedBegin();
+#endif
+	return false;
+}
+
 static void
 GameLoop_Client_Draw(void)
 {
@@ -409,14 +422,18 @@ GameLoop_Client_Draw(void)
 	} else if (g_gameOverlay == GAMEOVERLAY_HINT
 	        || g_gameOverlay == GAMEOVERLAY_WIN
 	        || g_gameOverlay == GAMEOVERLAY_LOSE) {
-		GUI_DrawInterfaceAndRadar();
-		ChatBox_DrawInGame(g_chat_buf);
+		if (!GameLoop_PausedBackground()) {
+			GUI_DrawInterfaceAndRadar();
+			ChatBox_DrawInGame(g_chat_buf);
+		}
 		MenuBar_DrawInGameOverlay();
 	} else if (g_gameOverlay == GAMEOVERLAY_MENTAT) {
 		MenuBar_DrawMentatOverlay();
 	} else {
-		GUI_DrawInterfaceAndRadar();
-		ChatBox_DrawInGame(g_chat_buf);
+		if (!GameLoop_PausedBackground()) {
+			GUI_DrawInterfaceAndRadar();
+			ChatBox_DrawInGame(g_chat_buf);
+		}
 		MenuBar_DrawOptionsOverlay();
 	}
 
