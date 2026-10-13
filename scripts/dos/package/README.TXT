@@ -24,7 +24,7 @@ SETUP
 REQUIREMENTS
 ------------
 - 486 or better with an FPU (486DX, DX2, DX4, Am5x86, Pentium, ...).
-- 16 MB RAM. 8 MB is not enough yet.
+- 16 MB RAM. 8 MB is not enough.
 - VLB or PCI SVGA card with VESA support for 640x480. A VESA 2.0 BIOS or
   UniVBE / SciTech Display Doctor gives a linear frame buffer, which is
   faster. Any VGA card can use 320x200.
@@ -177,8 +177,8 @@ SLOWER AND SMALLER MACHINES
   buffer, which is faster than banked access.
 - If sound is choppy or the game stutters in big battles, try
   voices=4 or voices=1, and mixer_quality=0.
-- 16 MB RAM is needed for now, at any resolution: the game uses about
-  10 MB. 8 MB support is planned.
+- 16 MB RAM is needed at any resolution: the game uses about 10-12 MB
+  (DOS-PLAN.md in the source explains why).
 
 
 WHAT WORKS

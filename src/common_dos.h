@@ -15,6 +15,11 @@ extern const char *DOS_ArgValue(const char *name);
 extern void DOS_LogSystemReport(void);
 extern void DOS_LogSettings(void);
 
+/* Physical memory in use, the change since the last report and the
+ * most so far; DOS_SampleMemory only updates the most. */
+extern void DOS_LogMemory(const char *when);
+extern void DOS_SampleMemory(void);
+
 #ifdef __cplusplus
 }
 #endif
