@@ -66,8 +66,8 @@ Edit DUNEDYN.CFG ([graphics] section):
   320x200      Not playable yet: the sidebar has no room for build items.
 
 At 320x240 the build list shows one item at a time. Turn on the compact
-build list (Options and Extras > Gameplay > "Compact two-column build
-list", or compact_build_list=1 in the [enhancement] section): two columns
+build list (in game: Options > Game controls, last page, "Compact build
+list"; or compact_build_list=1 in the [enhancement] section): two columns
 of small icons, as many rows as fit (4 items at 320x240, about 20 at
 640x480). Ready items say READY, items being built show a percentage,
 items on hold a pause sign.
