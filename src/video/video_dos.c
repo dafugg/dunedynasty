@@ -44,6 +44,7 @@
 #include "../gui/font.h"
 #include "../gui/gui.h"
 #include "../input/input_a5.h"
+#include "../input/input_dos.h"
 #include "../input/mouse.h"
 #include "../map.h"
 #include "../opendune.h"
@@ -1336,10 +1337,16 @@ VideoDOS_PollAutomation(void)
 					{ PERF_DRAW_INTERFACE, "(interface)" },
 					{ PERF_UNIT_FOGRADIUS, "[unit fog radius]" }, { PERF_UNIT_AROUND, "[unit around]" },
 				};
-				printf("DD_PROFILE: draw parts, ms/frame:");
-				for (unsigned int i = 0; i < sizeof(parts) / sizeof(parts[0]); i++)
-					printf(" %s %.2f", parts[i].name, PROFILE_MS(parts[i].c));
-				printf("\n");
+				/* Parts timed with PERF_SECTION_BEGIN/END, when added. */
+				bool any = false;
+				for (unsigned int i = 0; i < sizeof(parts) / sizeof(parts[0]); i++) {
+					if (now.ticks[parts[i].c] == s_profile_base.ticks[parts[i].c])
+						continue;
+					printf("%s %s %.2f", any ? "" : "DD_PROFILE: draw parts, ms/frame:", parts[i].name, PROFILE_MS(parts[i].c));
+					any = true;
+				}
+				if (any)
+					printf("\n");
 				printf("DD_PROFILE: %.2f deferred back buffer clears per frame\n", s_deferred_clears / frames);
 				printf("DD_PROFILE: music interrupts %.2f%% of the CPU\n",
 					100.0 * (now.ticks[PERF_IRQ_MUSIC] - s_profile_base.ticks[PERF_IRQ_MUSIC]) / (double)(now.time - s_profile_base.time));
@@ -1362,7 +1369,7 @@ VideoDOS_PollAutomation(void)
 }
 
 void
-VideoA5_ClearScreen(void)
+VideoDOS_ClearScreen(void)
 {
 	s_pending_clear = false;
 	clear_bitmap(g_dos_backbuffer);
@@ -1882,21 +1889,25 @@ VideoDOS_LogPerformance(const char *title)
 	static const PerfSnapshot zero;
 
 	if (s_mission_running)
-		VideoDOS_MissionEnd();
+		Perf_MissionEnd();
 
 	VideoDOS_LogPerformanceSince(title, &zero, PERF_WINDOW_RUN);
 }
 
 void
-VideoDOS_MissionStart(void)
+Perf_MissionStart(void)
 {
+	RunLog_Printf("Mission start: %s, %s scenario %d\n",
+		(g_campaign_selected == CAMPAIGNID_SKIRMISH) ? "skirmish" : "campaign",
+		g_table_houseInfo[g_playerHouseID].name, g_scenarioID);
+
 	Perf_Snapshot(&s_mission_base, PERF_WINDOW_MISSION);
 	Perf_ResetFrameTime();
 	s_mission_running = true;
 }
 
 void
-VideoDOS_MissionEnd(void)
+Perf_MissionEnd(void)
 {
 	if (!s_mission_running)
 		return;

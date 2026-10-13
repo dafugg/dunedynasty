@@ -6,11 +6,13 @@
  */
 
 #include <allegro.h>
+#include <allegro5/allegro.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "errorlog.h"
 
 #include "input_a5.h"
+#include "input_dos.h"
 
 #include "../config.h"
 #include "../input/input.h"
@@ -293,7 +295,7 @@ InputDOS_GetCursorPosition(int *x, int *y)
 }
 
 void
-InputA5_FlushEvents(void)
+InputDOS_FlushEvents(void)
 {
 	s_key_tail = s_key_head;
 	TimerDOS_FlushInputTicks();
@@ -307,33 +309,45 @@ InputA5_FlushEvents(void)
 }
 
 /**
- * Block until a GUI timer tick or input arrives, and process it.
- * Timer ticks are checked first so that a moving mouse cannot starve
- * the menu animations.
- * @return true if a redraw is required.
+ * The menus' al_wait_for_event (src/dos/a5compat.c): block until a GUI
+ * timer tick or input arrives.  Timer ticks are checked first so that
+ * a moving mouse cannot starve the menu animations.
+ * @return true for a timer tick, false for input (processed by
+ *   InputA5_ProcessEvent).
  */
 bool
-InputA5_WaitForEvent(bool apply_mouse_transform, bool *is_timer_event)
+InputDOS_WaitForEvent(void)
 {
-	s_apply_mouse_transform = apply_mouse_transform;
+	/* Only the menus wait here, and they use menu coordinates; scripted
+	 * input fed in while idle needs to know. */
+	s_apply_mouse_transform = true;
 
 	for (;;) {
-		if (TimerDOS_TakeInputTick()) {
-			*is_timer_event = true;
-			return false;
-		}
+		if (TimerDOS_TakeInputTick())
+			return true;
 
 		const int pos = mouse_pos;
 		const bool mouse_changed = (mouse_b != s_mouse_b) || (mouse_z != s_mouse_z)
 			|| ((pos >> 16) != s_mouse_x) || ((pos & 0xFFFF) != s_mouse_y);
 
-		if (s_key_tail != s_key_head || mouse_changed) {
-			*is_timer_event = false;
-			return InputA5_Tick(apply_mouse_transform);
-		}
+		if (s_key_tail != s_key_head || mouse_changed)
+			return false;
 
 		TimerDOS_Idle();
 	}
+}
+
+/**
+ * As the Allegro 5 backend: process an event from al_wait_for_event.
+ * @return true if a redraw is required.
+ */
+bool
+InputA5_ProcessEvent(ALLEGRO_EVENT *event, bool apply_mouse_transform)
+{
+	if (event->type != ALLEGRO_EVENT_DOS_INPUT)
+		return false;
+
+	return InputA5_Tick(apply_mouse_transform);
 }
 
 /*--------------------------------------------------------------*/

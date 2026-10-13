@@ -1,14 +1,12 @@
 /* menu.c */
 
 #include <assert.h>
+#include <allegro5/allegro.h>
 #include <ctype.h>
-#include <stdlib.h>
-#include <string.h>
 #include "buildcfg.h"
 #include "enum_string.h"
 #include "types.h"
 #include "../os/common.h"
-#include "../os/fs.h"
 #include "../os/math.h"
 #include "../os/strings.h"
 
@@ -212,29 +210,20 @@ Briefing_InitWidgets(void)
 }
 
 static void
-Menu_AddCampaign(const char *dirname, const char *module, bool is_directory, void *data)
+Menu_AddCampaign(ALLEGRO_PATH *path)
 {
-	VARIABLE_NOT_USED(data);
-
-	if (!is_directory)
-		return;
-
 	/* Don't add CAMPAIGNID_SKIRMISH nor CAMPAIGNID_MULTIPLAYER again. */
-	if ((strcasecmp(module, "skirmish") == 0)
-	 || (strcasecmp(module, "multiplayer") == 0))
+	if ((strcasecmp(al_get_path_tail(path), "skirmish") == 0)
+	 || (strcasecmp(al_get_path_tail(path), "multiplayer") == 0))
 		return;
 
-	char fullpath[PATH_MAX];
+	al_set_path_filename(path, "META.INI");
+	const char *meta = al_path_cstr(path, ALLEGRO_NATIVE_PATH_SEP);
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-truncation"
-	snprintf(fullpath, sizeof(fullpath), "%s%s/META.INI", dirname, module);
-#pragma GCC diagnostic pop
-
-	if (!File_Exists_Ex(SEARCHDIR_ABSOLUTE, fullpath))
+	if (!File_Exists_Ex(SEARCHDIR_ABSOLUTE, meta))
 		return;
 
-	char *source = File_ReadWholeFile_Ex(SEARCHDIR_ABSOLUTE, fullpath);
+	char *source = File_ReadWholeFile_Ex(SEARCHDIR_ABSOLUTE, meta);
 	char buffer[120];
 	int house[3];
 
@@ -259,7 +248,8 @@ Menu_AddCampaign(const char *dirname, const char *module, bool is_directory, voi
 	char value[1024];
 	int i;
 
-	i = snprintf(value, sizeof(value), "%s/", module);
+	al_set_path_filename(path, NULL);
+	i = snprintf(value, sizeof(value), "%s/", al_get_path_tail(path));
 
 	Ini_GetString("PAK", "Scenarios", NULL, value + i, sizeof(value) - i, source);
 
@@ -267,11 +257,10 @@ Menu_AddCampaign(const char *dirname, const char *module, bool is_directory, voi
 		i++;
 	}
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-truncation"
 	/* Check PAK file listed. */
 	if (value[i] != '\0') {
-		snprintf(fullpath, sizeof(fullpath), "%s%s/%s", dirname, module, value + i);
+		al_set_path_filename(path, value + i);
+		const char *fullpath = al_path_cstr(path, ALLEGRO_NATIVE_PATH_SEP);
 
 		if (File_Exists_Ex(SEARCHDIR_ABSOLUTE, fullpath))
 			campaign_added = true;
@@ -283,16 +272,21 @@ Menu_AddCampaign(const char *dirname, const char *module, bool is_directory, voi
 			if (house[h] == HOUSE_INVALID)
 				continue;
 
-			snprintf(fullpath, sizeof(fullpath), "%s%s/REGION%c.INI", dirname, module, g_table_houseInfo[house[h]].name[0]);
+			snprintf(value, sizeof(value), "REGION%c.INI", g_table_houseInfo[house[h]].name[0]);
+
+			al_set_path_filename(path, value);
+			const char *fullpath = al_path_cstr(path, ALLEGRO_NATIVE_PATH_SEP);
 
 			if (!File_Exists_Ex(SEARCHDIR_ABSOLUTE, fullpath))
 				house[h] = HOUSE_INVALID;
 		}
 	}
-#pragma GCC diagnostic pop
 
 	/* Add campaign to list. */
 	if ((house[0] != HOUSE_INVALID) || (house[1] != HOUSE_INVALID) || (house[2] != HOUSE_INVALID)) {
+		al_set_path_filename(path, NULL);
+		const char *module = al_get_path_tail(path);
+
 		Campaign *camp = Campaign_Alloc(module);
 
 		for (int h = 0; h < 3; h++) {
@@ -318,14 +312,38 @@ static void
 Menu_ScanCampaigns(void)
 {
 	char dirname[PATH_MAX];
+	ALLEGRO_FS_ENTRY *e, *f;
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-truncation"
 	snprintf(dirname, sizeof(dirname), "%s/campaign/", g_dune_data_dir);
 #pragma GCC diagnostic pop
 
-	if (!FS_ListDirectory(dirname, Menu_AddCampaign, NULL))
+	e = al_create_fs_entry(dirname);
+	if (!e)
 		return;
+
+	if (!al_open_directory(e)) {
+		al_destroy_fs_entry(e);
+		return;
+	}
+
+	f = al_read_directory(e);
+	while (f != NULL) {
+		const bool is_directory = (al_get_fs_entry_mode(f) & ALLEGRO_FILEMODE_ISDIR);
+
+		if (is_directory) {
+			ALLEGRO_PATH *path = al_create_path_for_directory(al_get_fs_entry_name(f));
+			Menu_AddCampaign(path);
+			al_destroy_path(path);
+		}
+
+		al_destroy_fs_entry(f);
+		f = al_read_directory(e);
+	}
+
+	al_close_directory(e);
+	al_destroy_fs_entry(e);
 
 	/* Sort campaigns. */
 	if (g_campaign_total > CAMPAIGNID_MULTIPLAYER + 1) {
@@ -1303,7 +1321,7 @@ Menu_Run(void)
 
 	Menu_Init();
 
-	InputA5_FlushEvents();
+	al_flush_event_queue(g_a5_input_queue);
 
 	while (curr_menu != MENU_EXIT_GAME) {
 		/* Initialise. */
@@ -1360,7 +1378,7 @@ Menu_Run(void)
 		/* Draw. */
 		if (redraw && (last_redraw_time < Timer_GetTicks())) {
 			redraw = false;
-			VideoA5_ClearScreen();
+			al_clear_to_color(al_map_rgb(0, 0, 0));
 
 			switch (curr_menu & 0xFF) {
 				case MENU_MAIN_MENU:
@@ -1427,9 +1445,10 @@ Menu_Run(void)
 		}
 
 		/* Menu input. */
-		bool is_timer_event;
+		ALLEGRO_EVENT event;
 
-		if (InputA5_WaitForEvent(true, &is_timer_event))
+		al_wait_for_event(g_a5_input_queue, &event);
+		if (InputA5_ProcessEvent(&event, true))
 			redraw = true;
 
 		curr_menu = (curr_menu & ~MENU_REDRAW);
@@ -1507,7 +1526,7 @@ Menu_Run(void)
 
 			case MENU_BATTLE_SUMMARY:
 			case MENU_SKIRMISH_SUMMARY:
-				if (is_timer_event) {
+				if (event.type == ALLEGRO_EVENT_TIMER) {
 					res = BattleSummary_TimerLoop(curr_menu, g_scenarioID, &g_hall_of_fame_state);
 				} else {
 					res = BattleSummary_InputLoop(curr_menu, &g_hall_of_fame_state);
@@ -1552,7 +1571,7 @@ Menu_Run(void)
 				break;
 
 			case MENU_STRATEGIC_MAP:
-				if (is_timer_event) {
+				if (event.type == ALLEGRO_EVENT_TIMER) {
 					if (StrategicMap_TimerLoop(&g_strategic_map_state))
 						res |= MENU_REDRAW;
 				} else {

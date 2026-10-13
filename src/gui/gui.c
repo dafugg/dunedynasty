@@ -13,7 +13,6 @@
 #include "../os/endian.h"
 
 #include "gui.h"
-#include "../timer/perf.h"
 #ifdef __DJGPP__
 #include "../video/uicache_dos.h"
 #endif
@@ -1277,7 +1276,6 @@ void GUI_DrawInterfaceAndRadar(void)
 	PoolFindStruct find;
 	Screen oldScreenID;
 
-	PERF_SECTION_BEGIN(iface);
 	oldScreenID = GFX_Screen_SetActive((screenID == SCREEN_0) ? SCREEN_1 : screenID);
 
 #ifdef __DJGPP__
@@ -1285,14 +1283,10 @@ void GUI_DrawInterfaceAndRadar(void)
 	if (VideoDOS_UIBegin())
 #endif
 	{
-		PERF_SECTION_BEGIN(menubar);
 		MenuBar_Draw(g_playerHouseID);
-		PERF_SECTION_END(menubar, PERF_DRAW_MENUBAR);
 
-		PERF_SECTION_BEGIN(sidebar);
 		A5_UseTransform(SCREENDIV_SIDEBAR);
 		GUI_Widget_ActionPanel_Draw(true);
-		PERF_SECTION_END(sidebar, PERF_DRAW_SIDEBAR);
 
 #ifdef __DJGPP__
 		VideoDOS_UIStore();
@@ -1305,11 +1299,8 @@ void GUI_DrawInterfaceAndRadar(void)
 	}
 #endif
 
-	PERF_SECTION_BEGIN(screen);
 	GUI_DrawScreen(g_screenActiveID);
-	PERF_SECTION_END(screen, PERF_DRAW_SCREEN);
 
-	PERF_SECTION_BEGIN(unitmap);
 #if 0
 	for (Structure *s = Structure_FindFirst(&find, HOUSE_INVALID, STRUCTURE_INVALID);
 			s != NULL;
@@ -1326,10 +1317,8 @@ void GUI_DrawInterfaceAndRadar(void)
 			u = Unit_FindNext(&find)) {
 		Unit_UpdateMap(1, u);
 	}
-	PERF_SECTION_END(unitmap, PERF_DRAW_UNITMAP);
 
 	GFX_Screen_SetActive(oldScreenID);
-	PERF_SECTION_END(iface, PERF_DRAW_INTERFACE);
 }
 
 /**
@@ -2291,9 +2280,7 @@ void GUI_DrawScreen(Screen screenID)
 
 	oldScreenID = GFX_Screen_SetActive(screenID);
 
-	PERF_SECTION_BEGIN(fogupdate);
 	Map_Client_UpdateFogOfWar();
-	PERF_SECTION_END(fogupdate, PERF_DRAW_FOGUPDATE);
 
 	g_selectionRectanglePosition = g_selectionPosition;
 
@@ -2303,9 +2290,7 @@ void GUI_DrawScreen(Screen screenID)
 	}
 
 	A5_UseTransform(SCREENDIV_VIEWPORT);
-	PERF_SECTION_BEGIN(viewport);
 	GUI_Widget_Viewport_Draw();
-	PERF_SECTION_END(viewport, PERF_DRAW_VIEWPORT);
 	A5_UseTransform(SCREENDIV_MAIN);
 
 	GFX_Screen_SetActive(oldScreenID);
