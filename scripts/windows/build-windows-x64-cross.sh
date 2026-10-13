@@ -9,12 +9,15 @@
 #        MINGW_DEPS  MSYS2 UCRT64 packages (~/tools/mingw-ucrt64, from
 #                    scripts/windows/fetch-msys2-deps.py)
 #        PKGCONF     a pkg-config for the build host (pkg-config, or pkgconf)
+#        SRC         source tree to build (this one), e.g. a pull-request
+#                    worktree based on upstream without these scripts
 # Output: <build-dir>/dist with dunedynasty.exe and the DLLs it needs.
 
 set -eu
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-BUILD="${1:-$ROOT/build-win64}"
+SRC="${SRC:-$ROOT}"
+BUILD="${1:-$SRC/build-win64}"
 [ $# -gt 0 ] && shift
 LLVM_MINGW="${LLVM_MINGW:-$HOME/tools/llvm-mingw}"
 MINGW_DEPS="${MINGW_DEPS:-$HOME/tools/mingw-ucrt64}"
@@ -36,7 +39,7 @@ exec "$PKGCONF" "\$@"
 WRAP
 chmod +x "$BUILD/pkg-config-win64"
 
-"$CMAKE" -S "$ROOT" -B "$BUILD" \
+"$CMAKE" -S "$SRC" -B "$BUILD" \
 	-DCMAKE_TOOLCHAIN_FILE="$ROOT/cmake/mingw-llvm.cmake" \
 	-DCMAKE_BUILD_TYPE=Release \
 	-DPKG_CONFIG_EXECUTABLE="$BUILD/pkg-config-win64" "$@"
