@@ -191,6 +191,12 @@ when first played (up to 1.5 MB).
   values, so changing them in the options menu during that run is not
   kept.
 - 320x200 is not playable: the sidebar has no room for build items.
+- Skirmish map generation on a 486 can take seconds when most attempts
+  fail (six houses in teams of 1: 25 attempts, about 8.5 s on a
+  DX2/66). The cursor used to move only between attempts (every
+  250-370 ms); `VIDEO_POLL_CURSOR()` between the generator's stages now
+  keeps the gaps under about 140 ms. Each attempt still reloads the
+  terrain tiles and unit scripts (~100 ms); see Backlog.
 
 ### Untested
 - On real hardware: everything. In 86Box: mouse clicks with a real
@@ -237,6 +243,11 @@ when first played (up to 1.5 MB).
   `DUNEDYN.LOG` from that setup).
 
 ### Performance
+- Skirmish map generation: each attempt reloads ICON.ICN, ICON.MAP and
+  UNIT.EMC (~100 ms of 250-370 ms on a DX2/66). The scripts live in the
+  shared `SCREEN_2` buffer, which menus can overwrite, so skipping the
+  reload needs care. Would help every platform slightly; only
+  noticeable on DOS.
 - Copy to screen (3.3 ms at 320x240): skip comparing areas known to be
   unchanged, such as the cached sidebar.
 - Fog edges (~2 ms) and blitter tuning (~2-3 ms).
