@@ -246,6 +246,17 @@ static bool s_frame_ingame;             /* This frame began with the in-game UI.
 static bool s_clear_skipped;            /* This frame relies on repainting everything. */
 static long s_deferred_clears;          /* DD_PROFILE: deferred clears that had to happen. */
 
+/* Paused-overlay background (uicache_dos.h). */
+#define PAUSED_REFRESH_TICKS    60      /* Redraw the background at least once a second. */
+static BITMAP *s_paused_bg;
+static bool s_paused_valid;
+static bool s_paused_frame;             /* This frame called VideoDOS_PausedBegin. */
+static bool s_paused_capture;           /* Keep the screen at the next shade. */
+static bool s_paused_skip_shade;        /* The restored copy is already shaded. */
+static int s_paused_alpha;
+static int64_t s_paused_tick;
+static unsigned int s_paused_serial;
+
 static inline void
 VideoDOS_TouchBackbuffer(void)
 {
@@ -1178,7 +1189,7 @@ VideoA5_Uninit(void)
 	VideoDOS_UninitCPSStore();
 
 	BITMAP **bitmaps[] = {
-		&scratch, &s_front, &s_overlay_bmp, &s_cursor_bmp, &s_ui_cache, &s_terrain, &s_minimap, &interface_texture, &icon_texture,
+		&scratch, &s_front, &s_overlay_bmp, &s_cursor_bmp, &s_ui_cache, &s_terrain, &s_paused_bg, &s_minimap, &interface_texture, &icon_texture,
 		&shape_texture, &mentat_texture, &region_texture, &g_dos_backbuffer
 	};
 
@@ -2018,6 +2029,12 @@ VideoA5_Tick(void)
 	}
 	s_frame_ingame = false;
 	s_clear_skipped = false;
+
+	if (!s_paused_frame)
+		s_paused_valid = false;
+	s_paused_frame = false;
+	s_paused_capture = false;
+	s_paused_skip_shade = false;
 	VideoDOS_ApplyClip();
 	Perf_Add(PERF_CLEAR, (uint32_t)(Perf_Now() - t1));
 }
@@ -2099,6 +2116,14 @@ Video_UngrabCursor(void)
 void
 Video_ShadeScreen(int alpha)
 {
+	if (s_paused_skip_shade) {
+		s_paused_skip_shade = false;
+		if (alpha == s_paused_alpha)
+			return;
+		/* A different shade: redraw properly next frame. */
+		s_paused_valid = false;
+	}
+
 	VideoDOS_TouchBackbuffer();
 	const unsigned char *lut = VideoDOS_ShadeTable(clamp(0x00, alpha, 0xFF));
 	BITMAP *bb = g_dos_backbuffer;
@@ -2109,6 +2134,52 @@ Video_ShadeScreen(int alpha)
 		for (int x = bb->cl; x < bb->cr; x++)
 			d[x] = lut[d[x]];
 	}
+
+	if (s_paused_capture) {
+		s_paused_capture = false;
+
+		if (s_paused_bg == NULL || s_paused_bg->w != bb->w || s_paused_bg->h != bb->h) {
+			if (s_paused_bg != NULL)
+				destroy_bitmap(s_paused_bg);
+			s_paused_bg = create_bitmap_ex(8, bb->w, bb->h);
+		}
+
+		if (s_paused_bg != NULL) {
+			blit(bb, s_paused_bg, 0, 0, 0, 0, bb->w, bb->h);
+			s_paused_valid = true;
+			s_paused_alpha = alpha;
+			s_paused_tick = Timer_GetTicks();
+			s_paused_serial = g_dos_input_serial;
+		}
+	}
+}
+
+/**
+ * @return true if the shaded game screen was copied back into the
+ *   frame; the caller then skips drawing the game screen.
+ */
+bool
+VideoDOS_PausedBegin(void)
+{
+	s_paused_frame = true;
+	s_paused_skip_shade = false;
+
+	const int64_t now = Timer_GetTicks();
+	if (s_paused_valid && g_dos_backbuffer != NULL
+			&& g_dos_input_serial == s_paused_serial
+			&& now - s_paused_tick < PAUSED_REFRESH_TICKS && now >= s_paused_tick) {
+		/* Repaints every pixel, like an in-game frame. */
+		s_pending_clear = false;
+		s_frame_ingame = true;
+
+		blit(s_paused_bg, g_dos_backbuffer, 0, 0, 0, 0, g_dos_backbuffer->w, g_dos_backbuffer->h);
+		s_paused_skip_shade = true;
+		return true;
+	}
+
+	s_paused_valid = false;
+	s_paused_capture = true;
+	return false;
 }
 
 void
