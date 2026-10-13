@@ -15,6 +15,7 @@ Keep this up to date as things are found or fixed.
 | `AdLibDriver::callback` returns early on an unknown opcode without calling `unlock()`. Harmless where lock/unlock are no-ops (desktop); deadlocks or leaves interrupts off where they are real. | `src/audio/adl/sound_adlib.cpp` | `unlock()` before the early return. | Branch `pr/fix-adlib-unlock` |
 
 | **F10 FPS counter invisible in game on the desktop build.** `VideoA5_Tick` drew it at (2, 40) in whatever transform was used last; in game that is the sidebar or menubar, so it only showed in menus and the mentat. Reported on Windows. | `src/video/video_a5.c` `VideoA5_Tick` | Draw in `SCREENDIV_MAIN`, as the software cursor just below does. Only on the PR branch (the DOS build has its own overlay). | Branch `pr/fix-fps-counter-in-game` |
+| **Team labels cut off in the lobby.** `ScrollListArea_Draw` clipped "T1".."T6" to `teamWidth` (10 px), narrower than the centred text, so 2, 3, 5 and 6 lost their right edge. Reported on DOS; the code is shared. | `src/newui/scrollbar.c` | Clip to the inside of the label's box. | Branch `pr/fix-team-label-clipping` |
 | **Game slows down with the frame rate.** `GameLoop_ProcessGameTimer` jumped game time to the timer, so ticks between slow frames were lost (46% speed at 27 fps on a 486). Also, the loop drew only when the timer queue was empty, so a machine too slow for the game speed never drew. | `src/gameloop.c` | One step per tick, catching up on queued ticks, skipping ahead past 8 behind; draw at least every 6 ticks. Above 60 fps nothing changes. | Branch `pr/game-speed` |
 
 ## Bugs found, not fixed
@@ -190,6 +191,7 @@ Line counts are approximate (added plus removed).
 | `src/config_a5.c` (27) | `DUNEDYN.CFG` name; two `[audio]` keys; apply and swap command-line overrides | 8.3 file names; DOS mixer settings; overrides for one run (`-res`, `-voices`, ...) | DOS truncates `dunedynasty.cfg` to `DUNEDYNA.CFG`; no DOS sound settings; a one-off `-res` would be saved |
 | `src/audio/adl/sound_adlib.cpp` (21), `.h` (1) | Interrupt-safe `lock()`/`unlock()` on DOS; `tick()`, one driver step without generating samples | DOS drives a real OPL chip from a 72 Hz timer interrupt | No AdLib music on DOS (no software synth there), or races between the interrupt and the main program |
 | `src/gameloop.c` (~35) | `timer/perf.h` hooks (overlay timings, game tick count, mission summaries); kept shaded background behind hints and options | F10 performance overlay and `DUNEDYN.LOG`; hint and options screens at full speed on a 486 | No overlay or log on DOS; hint and options screens at half speed (29 vs 57 fps on a DX2) |
+| `src/mods/skirmish.c` (6), `src/video/video_poll.h` (new, 15) | `VIDEO_POLL_CURSOR()` between the map generator's stages; a no-op except on DOS | The DOS cursor is drawn by the main program; each generator attempt takes up to 370 ms on a 486, and with many houses dozens fail in a row | The cursor moves about three times a second for seconds at a time while the lobby generates a map |
 | `src/timer/perf.h` (new, 38) | Hook macros, no-ops except on DOS | One line per hook in shared code | An `#ifdef __DJGPP__` block at each hook |
 | `src/gui/gui.c` (25) | Menubar and sidebar cache hook | Redraw them at 15 Hz on DOS | About 6 ms more per frame on a 486 |
 | `src/newui/viewport.c` (32) | Terrain layer hook: redraw only changed cells | Software rendering on a 486 | 2-4 ms more per frame at 320x240, far more at 640x480 |
@@ -212,6 +214,7 @@ each with a `BUILD.TXT` saying what to test, are on the share in
 | 1a | `pr/fix-jukebox-crash` | jukebox crash without external music packs | DOS; Windows: to do |
 | 1b | `pr/fix-adlib-unlock` | AdLib driver lock left held on an unknown opcode | DOS; nothing visible on Windows |
 | 1c | `pr/fix-fps-counter-in-game` | existing F10 FPS counter not visible in game | Windows: to do |
+| 1d | `pr/fix-team-label-clipping` | team labels cut off in the lobby | DOS (86Box screenshot); Windows: to do |
 | 2 | `pr/game-speed` | real game speed below 60 fps | DOS (86Box); Windows: to do |
 | 3 | `pr/save-options` | save options when the menus close | DOS; Windows: to do |
 | 4 | `pr/compact-build-list` | compact two-column build list, README and sample config | DOS; Windows: to do |
@@ -255,6 +258,12 @@ leave `CHANGES.txt` alone; each description below suggests a line.
 > the software cursor just below does.
 >
 > Suggested CHANGES.txt: "Show the FPS counter (F10) in game."
+
+**1d. fix: team labels cut off in the skirmish and multiplayer lobby**
+
+> The team label (T1 to T6) was clipped to `teamWidth`, 10 pixels, but
+> the centred text is wider, so 2, 3, 5 and 6 lost their right edge.
+> It is now clipped to the inside of the box drawn around it.
 
 **2. fix: keep real game speed when the frame rate drops below 60 fps**
 
