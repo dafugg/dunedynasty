@@ -210,8 +210,8 @@ each with a `BUILD.TXT` saying what to test, are on the share in
 `windows/pr-tests/` (1a-1c share one build). Pushed to the fork
 https://github.com/dafugg/dunedynasty (remote `fork`, 2026-10-13),
 authored as `dafugg <5621217+dafugg@users.noreply.github.com>` because
-GitHub blocks pushes with the private address; no pull requests opened
-yet.
+GitHub blocks pushes with the private address. None of these is opened
+upstream yet (the CI fixes below are).
 
 | PR | Branch | Commits | Tested |
 |---|---|---|---|
@@ -224,6 +224,9 @@ yet.
 | 4 | `pr/compact-build-list` | compact two-column build list, README and sample config | DOS; Windows: to do |
 | 5 | `pr/build-without-enet` | build with `WITH_ENET=OFF` | DOS; Windows with ENet off and on: to do |
 | 6 | not yet | the MS-DOS target | Needs 5, and upstream's view first |
+| CI 1 (#68) | `pr/fix-windows-arm64` | Windows ARM64: link failure without Direct3D, and `SDL3.dll` missing from the package (two commits, stacked on CI 3) | Fork CI: Windows ARM64 green, artifact uploaded |
+| CI 2 (#69) | `pr/fix-macos-arm64` | macOS ARM64: Homebrew library paths (stacked on CI 3) | Fork CI: macOS ARM64 green, including "Test executable"; artifact uploaded |
+| CI 3 (#67) | `pr/fix-ci-artifact-names` | artifact names with `/` | Fork CI: uploads from a slash branch. Open first: CI 1 and 2 are based on it, so their pull requests include its commit until it is merged (rebase them if it is squash-merged) |
 
 Upstream's own build with `WITH_ENET=OFF` fails to link (undefined
 `enet_*` symbols), checked with the Windows cross-build.
@@ -326,6 +329,25 @@ leave `CHANGES.txt` alone; each description below suggests a line.
 >
 > For platforms without a network stack, and minimal builds. With
 > `WITH_ENET=ON` (the default) nothing changes.
+
+### Upstream CI (checked 2026-10-13 on the fork)
+
+Opened upstream 2026-10-14: #67 (artifact names), #68 (Windows ARM64),
+#69 (macOS ARM64). Upstream's CI runs on them once a maintainer
+approves (first-time contributor).
+
+Upstream `master` run unchanged on GitHub's runners (fork branch, since
+removed): Windows ARM64, Windows x86 and macOS ARM64 fail; Windows x64,
+Linux and macOS x86 build. Every pull request run upstream has failed
+since at least November 2025 (logs expired).
+
+| Problem | Cause | Status |
+|---|---|---|
+| Windows ARM64 does not link: `undefined symbol: al_get_d3d_device` | MSYS2's CLANGARM64 Allegro (5.2.11.1-3, built May 2026) has no Direct3D; the Direct3D code was guarded by `ALLEGRO_WINDOWS` | Fixed in `pr/fix-windows-arm64` (guard with `ALLEGRO_CFG_D3D`). Green on the fork's `windows-11-arm` runner (branch `arm64-test`, same commits; artifact `dunedynasty-arm64-test-windows-arm64`) |
+| Windows ARM64 package would not start | CLANGARM64 fluidsynth 2.6.1 needs `SDL3.dll`, missing from the hand-written DLL list | Fixed in `pr/fix-windows-arm64`. Not yet run on ARM hardware |
+| Runs on branches with `/` in the name, and all pull request runs (`<n>/merge`), fail at the upload | upload-artifact rejects `/` in artifact names | Fixed: `pr/fix-ci-artifact-names` (`ARTIFACT_REF` with `/` replaced by `-`); checked on the fork with a slash branch |
+| Windows x86: `target not found: mingw-w64-i686-allegro` (and enet, libmad) | MSYS2 no longer has those MINGW32 packages | Not fixed: upstream's call (drop 32-bit Windows, or another toolchain) |
+| macOS ARM64 (`macos-14`): `ld: library 'fluidsynth' not found`, empty `/lib` search paths | `build-macos-bundle.sh` took each library's path from `brew info ... \| grep Cellar`, which came out empty, so `LIBRARY_PATH` was `/lib:/lib:/lib`; Intel Homebrew's `/usr/local/lib` is searched anyway, Apple Silicon's `/opt/homebrew/lib` is not | Fix in `pr/fix-macos-arm64` (`brew --prefix <formula>`) |
 
 ### Order and testing
 
