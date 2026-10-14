@@ -209,6 +209,15 @@ The branches are on the fork https://github.com/dafugg/dunedynasty. 1a, 1b
 and 1d are opened upstream (#70 to #72); 1d links a screenshot on the
 fork's `pr-assets` branch.
 
+Every change is also in `dos-port`, so our builds have it before
+upstream merges it: changes are made in `dos-port` first, then copied
+to a PR branch. `scripts/check-pr-branches.py` checks this (it lists
+any PR branch with added lines that `dos-port` lacks; comment-only
+differences are allowed). Run it after creating or updating a PR
+branch. When upstream merges a PR, rebase `dos-port` onto the new
+master: an unchanged commit drops out by itself; resolve a squashed or
+edited one in favour of upstream's version.
+
 | PR | Branch | Commits | Tested |
 |---|---|---|---|
 | 1a (#70) | `pr/fix-jukebox-crash` | jukebox crash without external music packs | DOS; Windows: to do |
