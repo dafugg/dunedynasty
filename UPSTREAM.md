@@ -226,6 +226,7 @@ upstream yet (the CI fixes below are).
 | 6 | not yet | the MS-DOS target | Needs 5, and upstream's view first |
 | CI 1 (#68) | `pr/fix-windows-arm64` | Windows ARM64: link failure without Direct3D, and `SDL3.dll` missing from the package (two commits, stacked on CI 3) | Fork CI: Windows ARM64 green, artifact uploaded |
 | CI 2 (#69) | `pr/fix-macos-arm64` | macOS ARM64: Homebrew library paths (stacked on CI 3) | Fork CI: macOS ARM64 green, including "Test executable"; artifact uploaded |
+| CI 4 | `pr/fix-windows-x86` | Windows x86: build allegro, enet, libmad; objdump DLL bundling; Windows 7 import check (stacked on CI 3) | Fork CI: green, Windows 7 check passes |
 | CI 3 (#67) | `pr/fix-ci-artifact-names` | artifact names with `/` | Fork CI: uploads from a slash branch. Open first: CI 1 and 2 are based on it, so their pull requests include its commit until it is merged (rebase them if it is squash-merged) |
 
 Upstream's own build with `WITH_ENET=OFF` fails to link (undefined
@@ -346,8 +347,14 @@ since at least November 2025 (logs expired).
 | Windows ARM64 does not link: `undefined symbol: al_get_d3d_device` | MSYS2's CLANGARM64 Allegro (5.2.11.1-3, built May 2026) has no Direct3D; the Direct3D code was guarded by `ALLEGRO_WINDOWS` | Fixed in `pr/fix-windows-arm64` (guard with `ALLEGRO_CFG_D3D`). Green on the fork's `windows-11-arm` runner (branch `arm64-test`, same commits; artifact `dunedynasty-arm64-test-windows-arm64`) |
 | Windows ARM64 package would not start | CLANGARM64 fluidsynth 2.6.1 needs `SDL3.dll`, missing from the hand-written DLL list | Fixed in `pr/fix-windows-arm64`. Not yet run on ARM hardware |
 | Runs on branches with `/` in the name, and all pull request runs (`<n>/merge`), fail at the upload | upload-artifact rejects `/` in artifact names | Fixed: `pr/fix-ci-artifact-names` (`ARTIFACT_REF` with `/` replaced by `-`); checked on the fork with a slash branch |
-| Windows x86: `target not found: mingw-w64-i686-allegro` (and enet, libmad) | MSYS2 no longer has those MINGW32 packages | Not fixed: upstream's call (drop 32-bit Windows, or another toolchain) |
+| Windows x86: `target not found: mingw-w64-i686-allegro` (and enet, libmad) | MSYS2 no longer has those MINGW32 packages (the repository is down to about 220; the other 53 of the build's 62 dependencies are still there) | Fixed on `pr/fix-windows-x86` (stacked on CI 3): builds the three from MSYS2's recipes (pinned MINGW-packages commit, `mingw32` added, Allegro without dumb/theora/openal/physfs), cached; DLLs bundled by following imports with objdump (ldd cannot read 32-bit executables); new Windows 7 import check step. Fork CI green, cache hit on the second run. Test build on the share (`windows/pr-tests/windows-x86`). Not opened upstream yet |
 | macOS ARM64 (`macos-14`): `ld: library 'fluidsynth' not found`, empty `/lib` search paths | `build-macos-bundle.sh` took each library's path from `brew info ... \| grep Cellar`, which came out empty, so `LIBRARY_PATH` was `/lib:/lib:/lib`; Intel Homebrew's `/usr/local/lib` is searched anyway, Apple Silicon's `/opt/homebrew/lib` is not | Fix in `pr/fix-macos-arm64` (`brew --prefix <formula>`) |
+
+**Windows 7.** The v1.6.4 x86 release uses `msvcrt.dll` (no Universal C
+Runtime) and none of about 50 common Windows 8+ functions, so it should
+run on 32-bit Windows 7 (Vista at the earliest: it uses `avrt.dll`).
+The x64 build needs the Universal C Runtime, which Windows 7 SP1 gets
+from KB2999226. Checked from imports only, not run on Windows 7.
 
 ### Order and testing
 
