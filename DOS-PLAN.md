@@ -58,15 +58,15 @@ Bugs, fixes and features to offer upstream are tracked in
 - Settings saved when the options menus close, not only on a clean exit.
 - Compact build list option (off by default, any resolution): two
   columns of small icons, as many rows as fit; READY / percentage /
-  pause sign on the icons. Screenshots for a pull request are on the
-  share (`compact-build-list/`).
+  pause sign on the icons. In the in-game Game Controls (last page).
 - Game keeps real time below 60 fps: one game step per timer tick,
   catching up on queued ticks (skipping ahead past 8 behind), and a frame
   is drawn at least every 6 ticks. Atreides mission 3 at 640x480 on a
   DX2/66 (86Box): 27 fps; game speed 46% before, 95% after.
 - Test rig: 86Box machine templates, scripted input and screenshots,
-  `DD_PROFILE` / `-profcoarse` timing, packaging to a share
-  (`DOS_PUBLISH_DIRS`).
+  `DD_PROFILE` / `-profcoarse` timing, memory use in `DUNEDYN.LOG`,
+  packaging to a directory after every build (`DOS_PUBLISH_DIRS`). See
+  [docs/building-headless.md](docs/building-headless.md).
 
 ## Memory use
 
@@ -177,12 +177,12 @@ when first played (up to 1.5 MB).
 - **Desktop builds.** Windows x64 cross-compiles on Linux
   (`scripts/windows/build-windows-x64-cross.sh`: llvm-mingw plus the
   MSYS2 UCRT64 libraries upstream's CI uses), with no new warnings from
-  our changes. On the user's Windows 11 PC it runs, keeps settings, and
-  saves load both ways with DOS (2026-10-13). Since then the desktop
-  build uses upstream's Allegro 5 config, file and menu code again (DOS
-  gets them from `src/dos/a5compat/`, see UPSTREAM.md), so a Windows
-  re-check is due, along with the per-PR test builds on the share
-  (`windows/pr-tests/`). The Linux desktop build has not been built.
+  our changes. On Windows 11 it runs, keeps settings, and saves load
+  both ways with DOS (2026-10-13). Since then the desktop build uses
+  upstream's Allegro 5 config, file and menu code again (DOS gets them
+  from `src/dos/a5compat/`, see UPSTREAM.md), so a Windows re-check is
+  due, along with the pull request branches. GitHub's CI builds Linux,
+  macOS and Windows from this branch; the Linux build has not been run.
 - Settings that a command-line switch overrides for one run (`-res`,
   `-voices`, `-quality`, `-allaudio`) are saved with their pre-override
   values, so changing them in the options menu during that run is not
@@ -197,7 +197,7 @@ when first played (up to 1.5 MB).
 
 ### Untested
 - On real hardware: everything. In 86Box: mouse clicks with a real
-  mouse driver work (user's VM); keypad scrolling with NumLock on and
+  mouse driver work (a tester's VM); keypad scrolling with NumLock on and
   off, Ctrl/Alt/Shift combinations and the mouse wheel are untested.
 - MIDI music only checked by counting notes sent; not listened to on a
   real General MIDI or MT-32 module.
@@ -209,7 +209,7 @@ when first played (up to 1.5 MB).
   groups (Ctrl+1, 1), group move orders, build queues and Shift to
   reduce, save and load on DOS, arrow-key scrolling, hint and options
   overlays, game speed below 60 fps.
-- Rally points: work (tested by the user, 2026-10-13).
+- Rally points: work (2026-10-13).
 
 ### Cosmetic
 - The overlay's font has no lower case, so it reads in capitals.
@@ -221,8 +221,6 @@ when first played (up to 1.5 MB).
 ### Test rig
 - Scripted input uses fixed coordinates; `play-atreides-1.inp` only
   reaches the build buttons at 640x480.
-- The user's 4DPS 86Box VM does not boot in the rig (its CMOS expects
-  another disk); a staged VM in `86box-dx2-66-vlb/` is the reference.
 - gprof does not work: its sampling interrupt does not survive Allegro
   taking over the timer. Use `DD_PROFILE` sections instead.
 
@@ -251,8 +249,9 @@ when first played (up to 1.5 MB).
 - 640x480 on 486s: cache more of the viewport's dynamic parts.
 - Per-frame unit update (~5 ms on a DX2, more with many units): only
   the deferred 15 Hz vision change would remove it (see Decisions).
-- Explain 45 fps on the user's 4DPS/dynarec VM against 60 fps on the
-  test VM (compare with dynarec off, or the staged test VM).
+- Explain 45 fps on a tester's 486 VM (86Box with the dynamic
+  recompiler) against 60 fps on the rig's DX2/66 (interpreter): compare
+  the same VM with the dynarec off.
 
 ### Platform and compatibility
 - 8 MB machines: postponed; see Memory use.
@@ -273,9 +272,9 @@ when first played (up to 1.5 MB).
 
 ## Suggested order
 
-1. Test pass (scripted 86Box runs), then the Windows cross-compile.
-2. Scripted 86Box test pass for the untested features.
-3. Real-hardware runs on the user's machines.
+1. Scripted 86Box test pass for the untested features.
+2. Real-hardware runs (486 to Pentium III).
+3. Windows re-check of the desktop build and the pull request branches.
 4. Pull requests (UPSTREAM.md).
 5. Gameplay features, starting with pathfinding or guard mode.
 6. Multiplayer.

@@ -205,13 +205,8 @@ in shared files; `perf.h` keeps the macros for adding them temporarily.
 
 One bug or one feature per pull request. Each branch is based on
 upstream `master` (4469449c), holds only its own change, and builds for Windows x64 (cross-compiled; no new warnings).
-Work on them in the worktree `../dune2qol-pr`. Windows test builds,
-each with a `BUILD.TXT` saying what to test, are on the share in
-`windows/pr-tests/` (1a-1c share one build). Pushed to the fork
-https://github.com/dafugg/dunedynasty (remote `fork`, 2026-10-13),
-authored as `dafugg <5621217+dafugg@users.noreply.github.com>` because
-GitHub blocks pushes with the private address. None of these is opened
-upstream yet (the CI fixes below are).
+The branches are on the fork https://github.com/dafugg/dunedynasty. None
+of these is opened upstream yet (the CI fixes below are).
 
 | PR | Branch | Commits | Tested |
 |---|---|---|---|
@@ -312,8 +307,8 @@ leave `CHANGES.txt` alone; each description below suggests a line.
 > Option: "Compact build list" on the last page of the in-game Game
 > Controls, next to the sidebar scale, so the effect shows at once; it
 > switches while playing (`compact_build_list` in `[enhancement]`).
-> Documented in the README and the sample config. Screenshots attached (share:
-> `compact-build-list/`).
+> Documented in the README and the sample config. (Attach screenshots of
+> the normal and compact lists at 320x240 and 640x480.)
 >
 > Suggested CHANGES.txt: "Add option for a compact two-column build
 > list."
@@ -347,7 +342,7 @@ since at least November 2025 (logs expired).
 | Windows ARM64 does not link: `undefined symbol: al_get_d3d_device` | MSYS2's CLANGARM64 Allegro (5.2.11.1-3, built May 2026) has no Direct3D; the Direct3D code was guarded by `ALLEGRO_WINDOWS` | Fixed in `pr/fix-windows-arm64` (guard with `ALLEGRO_CFG_D3D`). Green on the fork's `windows-11-arm` runner (branch `arm64-test`, same commits; artifact `dunedynasty-arm64-test-windows-arm64`) |
 | Windows ARM64 package would not start | CLANGARM64 fluidsynth 2.6.1 needs `SDL3.dll`, missing from the hand-written DLL list | Fixed in `pr/fix-windows-arm64`. Not yet run on ARM hardware |
 | Runs on branches with `/` in the name, and all pull request runs (`<n>/merge`), fail at the upload | upload-artifact rejects `/` in artifact names | Fixed: `pr/fix-ci-artifact-names` (`ARTIFACT_REF` with `/` replaced by `-`); checked on the fork with a slash branch |
-| Windows x86: `target not found: mingw-w64-i686-allegro` (and enet, libmad) | MSYS2 no longer has those MINGW32 packages (the repository is down to about 220; the other 53 of the build's 62 dependencies are still there) | Fixed on `pr/fix-windows-x86` (stacked on CI 3): builds the three from MSYS2's recipes (pinned MINGW-packages commit, `mingw32` added, Allegro without dumb/theora/openal/physfs), cached; DLLs bundled by following imports with objdump (ldd cannot read 32-bit executables); new Windows 7 import check step. Fork CI green, cache hit on the second run. Test build on the share (`windows/pr-tests/windows-x86`). Not opened upstream yet |
+| Windows x86: `target not found: mingw-w64-i686-allegro` (and enet, libmad) | MSYS2 no longer has those MINGW32 packages (the repository is down to about 220; the other 53 of the build's 62 dependencies are still there) | Fixed on `pr/fix-windows-x86` (stacked on CI 3): builds the three from MSYS2's recipes (pinned MINGW-packages commit, `mingw32` added, Allegro without dumb/theora/openal/physfs), cached; DLLs bundled by following imports with objdump (ldd cannot read 32-bit executables); new Windows 7 import check step. Fork CI green, cache hit on the second run; the build is the run's artifact. Not opened upstream yet |
 | macOS ARM64 (`macos-14`): `ld: library 'fluidsynth' not found`, empty `/lib` search paths | `build-macos-bundle.sh` took each library's path from `brew info ... \| grep Cellar`, which came out empty, so `LIBRARY_PATH` was `/lib:/lib:/lib`; Intel Homebrew's `/usr/local/lib` is searched anyway, Apple Silicon's `/opt/homebrew/lib` is not | Fix in `pr/fix-macos-arm64` (`brew --prefix <formula>`) |
 
 **Windows 7.** The v1.6.4 x86 release uses `msvcrt.dll` (no Universal C
@@ -365,8 +360,9 @@ from KB2999226. Checked from imports only, not run on Windows 7.
 Before submitting:
 
 - Build and run Linux and Windows. The Windows build cross-compiles
-  here (`scripts/windows/build-windows-x64-cross.sh`) and runs on the
-  user's Windows 11 PC: settings kept, saves load both ways with DOS.
+  on Linux (`scripts/windows/build-windows-x64-cross.sh`, see
+  docs/building-headless.md) and has been run on Windows 11: settings
+  kept, saves load both ways with DOS.
 - Real-hardware testing (486 to Pentium III).
 - Ask upstream whether they want the DOS target, and who maintains it.
 - Licences: Allegro 4 (giftware), CWSDPMI (redistributable with its
