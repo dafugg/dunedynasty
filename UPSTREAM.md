@@ -205,15 +205,16 @@ in shared files; `perf.h` keeps the macros for adding them temporarily.
 
 One bug or one feature per pull request. Each branch is based on
 upstream `master` (4469449c), holds only its own change, and builds for Windows x64 (cross-compiled; no new warnings).
-The branches are on the fork https://github.com/dafugg/dunedynasty. None
-of these is opened upstream yet (the CI fixes below are).
+The branches are on the fork https://github.com/dafugg/dunedynasty. 1a, 1b
+and 1d are opened upstream (#70 to #72); 1d links a screenshot on the
+fork's `pr-assets` branch.
 
 | PR | Branch | Commits | Tested |
 |---|---|---|---|
-| 1a | `pr/fix-jukebox-crash` | jukebox crash without external music packs | DOS; Windows: to do |
-| 1b | `pr/fix-adlib-unlock` | AdLib driver lock left held on an unknown opcode | DOS; nothing visible on Windows |
+| 1a (#70) | `pr/fix-jukebox-crash` | jukebox crash without external music packs | DOS; Windows: to do |
+| 1b (#71) | `pr/fix-adlib-unlock` | AdLib driver lock left held on an unknown opcode | DOS; nothing visible on Windows |
 | 1c | `pr/fix-fps-counter-in-game` | existing F10 FPS counter not visible in game | Windows: to do |
-| 1d | `pr/fix-team-label-clipping` | team labels cut off in the lobby | DOS (86Box screenshot); Windows: to do |
+| 1d (#72) | `pr/fix-team-label-clipping` | team labels cut off in the lobby | DOS (86Box); Windows 11 (screenshots in #72) |
 | 2 | `pr/game-speed` | real game speed below 60 fps | DOS (86Box); Windows: to do |
 | 3 | `pr/save-options` | save options when the menus close | DOS; Windows: to do |
 | 4 | `pr/compact-build-list` | compact two-column build list, README and sample config | DOS; Windows: to do |
