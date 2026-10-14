@@ -17,8 +17,14 @@ set -eu
 DISK1="$1"
 OUT="$2"
 
-MTOOLS_BIN="${MTOOLS_BIN:-$HOME/tools/hostpkgs/root/usr/bin}"
-SYSLINUX_MBR="${SYSLINUX_MBR:-$HOME/tools/hostpkgs/root/usr/lib/syslinux/mbr/mbr.bin}"
+# mtools and syslinux's mbr.bin from a private ~/tools/hostpkgs install if
+# present, else from the system.
+MTOOLS_BIN="${MTOOLS_BIN:-$( [ -x "$HOME/tools/hostpkgs/root/usr/bin/mcopy" ] && echo "$HOME/tools/hostpkgs/root/usr/bin" || dirname "$(command -v mcopy)")}"
+if [ -z "${SYSLINUX_MBR:-}" ]; then
+	for f in "$HOME/tools/hostpkgs/root/usr/lib/syslinux/mbr/mbr.bin" /usr/lib/syslinux/mbr/mbr.bin /usr/share/syslinux/mbr.bin /usr/lib/syslinux/bios/mbr.bin; do
+		[ -f "$f" ] && { SYSLINUX_MBR="$f"; break; }
+	done
+fi
 MKFS_FAT="${MKFS_FAT:-/usr/sbin/mkfs.fat}"
 
 CYLS=130

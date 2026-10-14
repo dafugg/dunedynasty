@@ -7,7 +7,10 @@
 # $BOX/primed-nvr/<machine>/ for scripts/dos/run-86box.sh.
 #
 # Usage: scripts/dos/prime-86box-nvr.sh <machine>
-# Env:   XVFB_DIR (~/tools/xvfb, patched Xvfb), HOSTPKGS (~/tools/hostpkgs)
+# Needs Xvfb and xdotool. By default the system ones; for a setup without
+# root, XVFB_DIR can hold a private Xvfb (run from that directory) and
+# HOSTPKGS a private root with xdotool and its libraries.
+# Env:   XVFB_DIR (~/tools/xvfb if present), HOSTPKGS (~/tools/hostpkgs if present)
 
 set -eu
 
@@ -21,13 +24,15 @@ DISPLAY_NUM="${DISPLAY_NUM:-:98}"
 VM_DIR="$BOX/vms/prime-$MACHINE"
 HOSTLIB="$HOSTPKGS/root/usr/lib/x86_64-linux-gnu"
 XDO="$HOSTPKGS/root/usr/bin/xdotool"
+[ -x "$XDO" ] || XDO=$(command -v xdotool)
+if [ -x "$XVFB_DIR/Xvfb" ]; then XVFB="./Xvfb"; else XVFB=$(command -v Xvfb); XVFB_DIR=.; fi
 
 rm -rf "${VM_DIR:?}"
 mkdir -p "$VM_DIR"
 cp "$BOX/vms/dos622-base.img" "$VM_DIR/hdd.img"
 sed "s|@HDD@|$VM_DIR/hdd.img|" "$SCRIPT_DIR/86box/$MACHINE.cfg" > "$VM_DIR/86box.cfg"
 
-(cd "$XVFB_DIR" && LD_LIBRARY_PATH="$HOSTLIB" ./Xvfb "$DISPLAY_NUM" -screen 0 1024x768x24 -nolisten tcp >/dev/null 2>&1) &
+(cd "$XVFB_DIR" && LD_LIBRARY_PATH="$HOSTLIB" "$XVFB" "$DISPLAY_NUM" -screen 0 1024x768x24 -nolisten tcp >/dev/null 2>&1) &
 xvfb_pid=$!
 sleep 2
 
