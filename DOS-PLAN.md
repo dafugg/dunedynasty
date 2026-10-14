@@ -237,6 +237,24 @@ when first played (up to 1.5 MB).
 - Missing cursor with mouse drivers other than CuteMouse (needs a
   `DUNEDYN.LOG` from that setup).
 
+### Sound
+- Popping in some sound effects: research. Someone reportedly found
+  the cause, and Nyerguds' Dune II patch includes a sound fix that may
+  be it (http://nyerguds.arsaneus-design.com/dune/dune2patch/). Find
+  what it changes (the sample data, or playback), whether Dune Dynasty
+  has the same problem on every platform, and whether the fix carries
+  over. If it does, it is an upstream fix as well.
+- Upstream's README already names a cause and recommends a mod for it
+  (README.md, "Recommended mods" → "Normalized VOC.PAK",
+  https://github.com/gameflorist/dunedynasty): many Dune II sound
+  effects have a DC offset, which pops and clicks when many sounds
+  play together. Tiddalick's normalized `VOC.PAK` fixes the data
+  (https://www.moddb.com/games/dune-ii-the-building-of-a-dynasty/addons/vocpak-normalized).
+  Compare it with Nyerguds' fix. Removing the DC offset when samples
+  load would fix it for every player without the mod, which matters
+  most on DOS, where players are less likely to install mods. Also
+  check that the DOS package's README mentions the mod.
+
 ### Performance
 - Skirmish map generation: each attempt reloads ICON.ICN, ICON.MAP and
   UNIT.EMC (~100 ms of 250-370 ms on a DX2/66). The scripts live in the
