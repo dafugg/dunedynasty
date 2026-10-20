@@ -63,6 +63,13 @@ Bugs, fixes and features to offer upstream are tracked in
   catching up on queued ticks (skipping ahead past 8 behind), and a frame
   is drawn at least every 6 ticks. Atreides mission 3 at 640x480 on a
   DX2/66 (86Box): 27 fps; game speed 46% before, 95% after.
+- Custom campaigns: the package ships `CAMPAIGN\<name>\META.INI` (and
+  `HOUSE.INI`/`PROFILE.INI`) for Dune 2 eXtended, MrFlibble's Alternate
+  Scenarios, Stefan Hendriks' Atreides Campaign and Super Dune II, which
+  goes in `SUPERDUN` (`superdune2` is not an 8.3 name). In 86Box each
+  campaign lists in the main menu and plays its own mission 1, at about
+  58 fps and 10.6 MB on a Pentium MMX 233; a Super Dune II game saves to
+  `SAVE\SUPERDUN` and loads again. The campaigns' files are not included.
 - Test rig: 86Box machine templates, scripted input and screenshots,
   `DD_PROFILE` / `-profcoarse` timing, memory use in `DUNEDYN.LOG`,
   packaging to a directory after every build (`DOS_PUBLISH_DIRS`). See

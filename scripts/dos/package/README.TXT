@@ -91,6 +91,26 @@ The batch files only change settings for that run; DUNEDYN.CFG keeps
 yours. Extra switches are passed on, e.g. LOW -nosound.
 
 
+CUSTOM CAMPAIGNS
+----------------
+Four fan-made campaigns can be played. They are not included: copy each
+one's files into its directory under CAMPAIGN, next to the META.INI that
+is already there. Then click the arrows beside the subtitle in the main
+menu to switch campaigns.
+
+  CAMPAIGN\DUNE2X    Dune 2 eXtended (DUNEX129.ZIP): CONQUEST.PAK,
+                     ENGLISH2.PAK and EXPAND.PAK
+  CAMPAIGN\MFAS      MrFlibble's Alternate Scenarios: SCENARIO.PAK
+  CAMPAIGN\SHAC      Stefan Hendriks' Atreides Campaign: REGIONA.INI and
+                     SCENA001.INI to SCENA022.INI
+  CAMPAIGN\SUPERDUN  Super Dune II Classic 1.5g: the *.SD2 files. Its
+                     INSTALL.EXE is a RAR archive; unpack it with UNRAR,
+                     or copy the files from an installed copy.
+
+Each META.INI says where the campaign can be downloaded. Saved games go
+in SAVE\<directory name>.
+
+
 COMMAND LINE
 ------------
 These apply to one run only and are not saved to DUNEDYN.CFG.
@@ -192,6 +212,8 @@ Tested in the 86Box emulator (486 and Pentium machines, MS-DOS 6.22):
   synth effects on the real OPL chip, MIDI music on an MPU-401
   (checked by counting the notes sent; not listened to on a real
   sound module yet).
+- The four custom campaigns: each one's mission 1, and saving and
+  loading in Super Dune II.
 
 Tested on DOS: Dune Dynasty's extra controls (drag selection, control
 groups, build queues, rally points), placing buildings, saving and
