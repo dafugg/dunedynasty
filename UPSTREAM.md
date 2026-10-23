@@ -10,12 +10,12 @@ Keep this up to date as things are found or fixed.
 
 | Bug | Where | Fix | PR status |
 |---|---|---|---|
-| **Jukebox crash when a track ends.** Auto-advance moves to the next music group. *Idle (Others)* (after *Idle 9*) lists only external music packs; when none are installed, the fallback looks for a Dune II AdLib track that the group does not have, and passes a NULL track to `Audio_PlayMusicFile` (page fault). Found on DOS (no external packs); affects any install without them. | `src/audio/audio.c` `Audio_PlayMusicGroup`, `Audio_PlayMusicNextInSequence` | Return if no track is found; skip groups with no playable songs when advancing. | Branch `pr/fix-jukebox-crash` |
-| `Audio_ScanMusic` resets `count` and `count_default` but not `count_found`, so a second scan would double-count. Latent: only scanned once today. | `src/audio/audio.c` `Audio_ScanMusic` | Reset `count_found` too. | Branch `pr/fix-jukebox-crash` |
-| `AdLibDriver::callback` returns early on an unknown opcode without calling `unlock()`. Harmless where lock/unlock are no-ops (desktop); deadlocks or leaves interrupts off where they are real. | `src/audio/adl/sound_adlib.cpp` | `unlock()` before the early return. | Branch `pr/fix-adlib-unlock` |
+| **Jukebox crash when a track ends.** Auto-advance moves to the next music group. *Idle (Others)* (after *Idle 9*) lists only external music packs; when none are installed, the fallback looks for a Dune II AdLib track that the group does not have, and passes a NULL track to `Audio_PlayMusicFile` (page fault). Found on DOS (no external packs); affects any install without them. | `src/audio/audio.c` `Audio_PlayMusicGroup`, `Audio_PlayMusicNextInSequence` | Return if no track is found; skip groups with no playable songs when advancing. | Merged (#70) |
+| `Audio_ScanMusic` resets `count` and `count_default` but not `count_found`, so a second scan would double-count. Latent: only scanned once today. | `src/audio/audio.c` `Audio_ScanMusic` | Reset `count_found` too. | Merged (#70) |
+| `AdLibDriver::callback` returns early on an unknown opcode without calling `unlock()`. Harmless where lock/unlock are no-ops (desktop); deadlocks or leaves interrupts off where they are real. | `src/audio/adl/sound_adlib.cpp` | `unlock()` before the early return. | Merged (#71) |
 
 | **F10 FPS counter invisible in game on the desktop build.** `VideoA5_Tick` drew it at (2, 40) in whatever transform was used last; in game that is the sidebar or menubar, so it only showed in menus and the mentat. Reported on Windows. | `src/video/video_a5.c` `VideoA5_Tick` | Draw in `SCREENDIV_MAIN`, as the software cursor just below does. Only on the PR branch (the DOS build has its own overlay). | Branch `pr/fix-fps-counter-in-game` |
-| **Team labels cut off in the lobby.** `ScrollListArea_Draw` clipped "T1".."T6" to `teamWidth` (10 px), narrower than the centred text, so 2, 3, 5 and 6 lost their right edge. Reported on DOS; the code is shared. | `src/newui/scrollbar.c` | Clip to the inside of the label's box. | Branch `pr/fix-team-label-clipping` |
+| **Team labels cut off in the lobby.** `ScrollListArea_Draw` clipped "T1".."T6" to `teamWidth` (10 px), narrower than the centred text, so 2, 3, 5 and 6 lost their right edge. Reported on DOS; the code is shared. | `src/newui/scrollbar.c` | Clip to the inside of the label's box. | Merged (#72) |
 | **Game slows down with the frame rate.** `GameLoop_ProcessGameTimer` jumped game time to the timer, so ticks between slow frames were lost (46% speed at 27 fps on a 486). Also, the loop drew only when the timer queue was empty, so a machine too slow for the game speed never drew. | `src/gameloop.c` | One step per tick, catching up on queued ticks, skipping ahead past 8 behind; draw at least every 6 ticks. Above 60 fps nothing changes. | Branch `pr/game-speed` |
 
 ## Bugs found, not fixed
@@ -205,9 +205,11 @@ in shared files; `perf.h` keeps the macros for adding them temporarily.
 
 One bug or one feature per pull request. Each branch is based on
 upstream `master` (4469449c), holds only its own change, and builds for Windows x64 (cross-compiled; no new warnings).
-The branches are on the fork https://github.com/dafugg/dunedynasty. 1a, 1b
-and 1d are opened upstream (#70 to #72); 1d links a screenshot on the
-fork's `pr-assets` branch.
+The branches are on the fork https://github.com/dafugg/dunedynasty.
+**Merged upstream on 2026-10-21 (merge commits, unchanged): #67 to #72**
+(CI 1 to 3, 1a, 1b, 1d); `dos-port` is rebased onto that master
+(2dc350fc). 1d links a screenshot on the fork's `pr-assets` branch. The
+other branches are based on 4469449c and still apply.
 
 Every change is also in `dos-port`, so our builds have it before
 upstream merges it: changes are made in `dos-port` first, then copied
@@ -220,19 +222,19 @@ edited one in favour of upstream's version.
 
 | PR | Branch | Commits | Tested |
 |---|---|---|---|
-| 1a (#70) | `pr/fix-jukebox-crash` | jukebox crash without external music packs | DOS; Windows: to do |
-| 1b (#71) | `pr/fix-adlib-unlock` | AdLib driver lock left held on an unknown opcode | DOS; nothing visible on Windows |
+| 1a (#70, merged) | `pr/fix-jukebox-crash` | jukebox crash without external music packs | DOS; Windows: to do |
+| 1b (#71, merged) | `pr/fix-adlib-unlock` | AdLib driver lock left held on an unknown opcode | DOS; nothing visible on Windows |
 | 1c | `pr/fix-fps-counter-in-game` | existing F10 FPS counter not visible in game | Windows: to do |
-| 1d (#72) | `pr/fix-team-label-clipping` | team labels cut off in the lobby | DOS (86Box); Windows 11 (screenshots in #72) |
+| 1d (#72, merged) | `pr/fix-team-label-clipping` | team labels cut off in the lobby | DOS (86Box); Windows 11 (screenshots in #72) |
 | 2 | `pr/game-speed` | real game speed below 60 fps | DOS (86Box); Windows: to do |
 | 3 | `pr/save-options` | save options when the menus close | DOS; Windows: to do |
 | 4 | `pr/compact-build-list` | compact two-column build list, README and sample config | DOS; Windows: to do |
 | 5 | `pr/build-without-enet` | build with `WITH_ENET=OFF` | DOS; Windows with ENet off and on: to do |
 | 6 | not yet | the MS-DOS target | Needs 5, and upstream's view first |
-| CI 1 (#68) | `pr/fix-windows-arm64` | Windows ARM64: link failure without Direct3D, and `SDL3.dll` missing from the package (two commits, stacked on CI 3) | Fork CI: Windows ARM64 green, artifact uploaded |
-| CI 2 (#69) | `pr/fix-macos-arm64` | macOS ARM64: Homebrew library paths (stacked on CI 3) | Fork CI: macOS ARM64 green, including "Test executable"; artifact uploaded |
+| CI 1 (#68, merged) | `pr/fix-windows-arm64` | Windows ARM64: link failure without Direct3D, and `SDL3.dll` missing from the package (two commits, stacked on CI 3) | Fork CI: Windows ARM64 green, artifact uploaded |
+| CI 2 (#69, merged) | `pr/fix-macos-arm64` | macOS ARM64: Homebrew library paths (stacked on CI 3) | Fork CI: macOS ARM64 green, including "Test executable"; artifact uploaded |
 | CI 4 | `pr/fix-windows-x86` | Windows x86: build allegro, enet, libmad; objdump DLL bundling; Windows 7 import check (stacked on CI 3) | Fork CI: green, Windows 7 check passes |
-| CI 3 (#67) | `pr/fix-ci-artifact-names` | artifact names with `/` | Fork CI: uploads from a slash branch. Open first: CI 1 and 2 are based on it, so their pull requests include its commit until it is merged (rebase them if it is squash-merged) |
+| CI 3 (#67, merged) | `pr/fix-ci-artifact-names` | artifact names with `/` | Fork CI: uploads from a slash branch. Open first: CI 1 and 2 are based on it, so their pull requests include its commit until it is merged (rebase them if it is squash-merged) |
 
 Upstream's own build with `WITH_ENET=OFF` fails to link (undefined
 `enet_*` symbols), checked with the Windows cross-build.
@@ -338,9 +340,12 @@ leave `CHANGES.txt` alone; each description below suggests a line.
 
 ### Upstream CI (checked 2026-10-13 on the fork)
 
-Opened upstream 2026-10-14: #67 (artifact names), #68 (Windows ARM64),
-#69 (macOS ARM64). Upstream's CI runs on them once a maintainer
-approves (first-time contributor).
+#67 (artifact names), #68 (Windows ARM64) and #69 (macOS ARM64) were
+merged on 2026-10-21. Upstream master (2dc350fc) is then green on every
+workflow except Windows x86, which `pr/fix-windows-x86` fixes. Its log
+now also warns that setup-msys2's MINGW32 environment is deprecated
+("32-bit environments are being phased out. There is no direct
+replacement"), so the x86 fix may only last until MSYS2 drops it.
 
 Upstream `master` run unchanged on GitHub's runners (fork branch, since
 removed): Windows ARM64, Windows x86 and macOS ARM64 fail; Windows x64,
