@@ -68,7 +68,17 @@ if [ "$(cat "$OUT/VERSIONS" 2>/dev/null)" != "$VERSIONS" ]; then
 	SRC="$OUT/src"
 
 	fetch "$LIBMAD_GIT/archive/$LIBMAD_TAG.tar.gz" "$SRC/libmad"
-	build "$SRC/libmad" -DEXAMPLE=OFF
+	# libmad picks its fixed-point maths from CMAKE_SYSTEM_PROCESSOR,
+	# which is the 64-bit host's (AMD64) here, so it would fall back to
+	# the less accurate generic version. Use the x86 one, as configure
+	# chooses for MSYS2's libmad 0.15.1b.
+	build "$SRC/libmad" -DEXAMPLE=OFF -DFPM_INTEL=ON -DFPM_DEFAULT=OFF
+	grep -q '^#define FPM_INTEL' "$SRC/libmad/build/mad.h" ||
+		{ echo "libmad was not built with FPM_INTEL" >&2; exit 1; }
+	if grep -q -E '^#define FPM_(DEFAULT|64BIT)' "$SRC/libmad/build/mad.h"; then
+		echo "libmad was not built with only FPM_INTEL" >&2
+		exit 1
+	fi
 
 	fetch "$ENET_GIT/archive/refs/tags/$ENET_TAG.tar.gz" "$SRC/enet"
 	build "$SRC/enet"
