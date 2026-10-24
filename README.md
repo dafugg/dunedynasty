@@ -562,16 +562,16 @@ The steps below will build the release-version. You can change value of the `DCM
     ```
 
     For 32bit (MSYS2 no longer provides 32-bit allegro, enet and libmad, so
-    the second step builds them from MSYS2's own recipes and installs them):
+    the second step builds the latest release of each from source and
+    installs it):
 
     ```shell
-    pacman -S base-devel git \
+    pacman -S git \
               mingw-w64-i686-cmake \
               mingw-w64-i686-gcc \
               mingw-w64-i686-gdb \
               mingw-w64-i686-ninja \
               mingw-w64-i686-pkgconf \
-              mingw-w64-i686-autotools \
               mingw-w64-i686-fluidsynth \
               mingw-w64-i686-flac \
               mingw-w64-i686-freetype \
