@@ -12,7 +12,7 @@ in [docs/building-headless.md](../../docs/building-headless.md).
 2. Get 86Box v6.0 (AppImage) and its ROM set into `~/tools/86box/` (`86Box.AppImage`, `roms/`; `BOX` to use another place).
 3. Stage the game in `~/tools/dos-stage/DUNEDYN/`:
    - `DATA/`: the Dune II 1.07 `*.PAK` files
-   - `CWSDPMI.EXE`: from csdpmi7b.zip
+   - `CWSDPMI.EXE`: from `~/tools/dl/cwsdpmi/bin`, which `setup-toolchain.sh` fills
 
    Other directories can be staged too and chosen per run with `STAGE_DIR`, e.g. one with saved games in `DUNEDYN/SAVE/`.
 4. Build the MS-DOS 6.22 boot disk from your own MS-DOS 6.22 Disk 1 image (not included):

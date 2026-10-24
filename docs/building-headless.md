@@ -22,19 +22,16 @@ look for private copies (see "Without root" below).
 
     scripts/dos/setup-toolchain.sh
 
-Installs the DJGPP gcc 12.2 cross compiler (build-djgpp v3.4) into
-`~/djgpp`, and builds Allegro 4.2, the last Allegro with DOS support,
-for DJGPP. Allegro is used unmodified.
+Installs the newest build-djgpp release (the DJGPP gcc cross compiler)
+into `~/djgpp`, builds Allegro 4.2, the last Allegro with DOS support,
+for DJGPP from the head of its 4.2 branch, and fetches the newest
+CWSDPMI (the DPMI host the game runs under) from DJGPP's archive into
+`~/tools/dl/cwsdpmi`. Allegro is used unmodified. Nothing is pinned:
+what is already installed is kept, so delete it to update.
+`setup-toolchain.sh versions` prints what it would install.
 
-The DOS package also needs two downloads that the script does not fetch:
-
-- **CWSDPMI** (the DPMI host the game runs under): `csdpmi7b.zip` from DJGPP's mirror
-  (<https://www.delorie.com/pub/djgpp/current/v2misc/csdpmi7b.zip>), unpacked so that
-  `~/tools/dl/cwsdpmi/bin/CWSDPMI.EXE` and `cwsdpmi.doc` exist
-  (`CWSDPMI_DIR` to use another place).
-- **CuteMouse** (only for the 86Box test runs): `ctm.zip` (CuteMouse 2.1)
-  unpacked so that `~/tools/dl/ctmouse/bin/CTMOUSE.EXE` exists
-  (`CTMOUSE`).
+The 86Box test runs also need **CuteMouse**: `ctm.zip` (CuteMouse 2.1)
+unpacked so that `~/tools/dl/ctmouse/bin/CTMOUSE.EXE` exists (`CTMOUSE`).
 
 ### Build
 
@@ -157,10 +154,17 @@ for "does it start"; not for timing, sound or video problems.
 
 ## CI on a fork
 
-The `.github/workflows/*-build.yml` workflows build Linux, macOS and
-Windows on GitHub's runners on every push. On a fork they are off until
-the fork's owner enables them once in the fork's Actions tab. Each run
-uploads the packaged build as an artifact.
+The `.github/workflows/*-build.yml` workflows build Linux, macOS,
+Windows and MS-DOS on GitHub's runners on every push. On a fork they are
+off until the fork's owner enables them once in the fork's Actions tab.
+Each run uploads the packaged build as an artifact.
+
+`dos-build.yml` runs `setup-toolchain.sh` (cached by the versions it
+resolves), builds, packages and runs `scripts/dos/ci-smoke.sh`: the game
+is started in DOSBox without game data and has to load under CWSDPMI and
+report the missing data files, like the Linux and macOS workflows' check
+for "data directory". CI cannot run the 86Box tests, which need an
+MS-DOS boot disk, BIOS ROMs and the game data.
 
 ## Without root
 

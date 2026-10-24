@@ -1,0 +1,84 @@
+name: MS-DOS Build
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update package index
+        run: sudo apt-get update
+
+      # DOSBox for the smoke test.
+      - name: Install dependencies
+        run: sudo apt -y install cmake dosbox
+
+      # The DJGPP cross compiler, Allegro 4.2 and CWSDPMI, each at its newest
+      # release (Allegro: head of the 4.2 branch), cached until one changes.
+      - name: Toolchain Versions
+        run: echo "DOS_TOOLCHAIN=$(./scripts/dos/setup-toolchain.sh versions)" >> "$GITHUB_ENV"
+
+      - name: Cache Toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/djgpp
+            ~/tools/src/allegro-4.2
+            ~/tools/dl/cwsdpmi
+          key: dos-toolchain-${{ env.DOS_TOOLCHAIN }}-${{ hashFiles('scripts/dos/setup-toolchain.sh') }}
+
+      - name: Set Up Toolchain
+        run: ./scripts/dos/setup-toolchain.sh
+
+      - name: Build
+        run: |
+          cmake -S . -B build-dos -DCMAKE_TOOLCHAIN_FILE=cmake/djgpp.cmake -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-dos -j"$(nproc)"
+
+      - name: Check executable
+        run: file build-dos/dist/dunedyn.exe | grep "DJGPP go32"
+
+      - name: Package
+        run: ./scripts/dos/package.sh
+
+      # Starts the game in DOSBox without game data: it has to load under
+      # CWSDPMI and report the missing data files.
+      - name: Test executable
+        run: ./scripts/dos/ci-smoke.sh build-dos/package/DUNEDYN
+
+      - name: Artifact Name
+        # Branch names and pull request refs ("46/merge") may contain "/",
+        # which is not allowed in artifact names.
+        shell: bash
+        run: echo "ARTIFACT_REF=${GITHUB_REF_NAME//\//-}" >> "$GITHUB_ENV"
+
+      - name: Delete Old Artifacts
+        uses: actions/github-script@v7
+        id: artifact
+        with:
+          script: |
+            const res = await github.rest.actions.listArtifactsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+            })
+
+            res.data.artifacts
+                .filter(({ name }) => name === 'dunedynasty-${{ env.ARTIFACT_REF }}-msdos')
+                .forEach(({ id }) => {
+                  github.rest.actions.deleteArtifact({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      artifact_id: id,
+                  })
+                })
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dunedynasty-${{ env.ARTIFACT_REF }}-msdos
+          path: build-dos/package
