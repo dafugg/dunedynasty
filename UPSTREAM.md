@@ -229,8 +229,8 @@ edited one in favour of upstream's version.
 | 1b (#71, merged) | `pr/fix-adlib-unlock` | AdLib driver lock left held on an unknown opcode | DOS; nothing visible on Windows |
 | 1c | (dropped) | F10 FPS counter size | Linux before/after screenshots showed the fix only shrank the counter in menus; dropped 2026-10-28 |
 | 1d (#72, merged) | `pr/fix-team-label-clipping` | team labels cut off in the lobby | DOS (86Box); Windows 11 (screenshots in #72) |
-| 2 | `pr/game-speed` | real game speed below 60 fps | DOS (86Box); Windows: to do |
-| 3 | `pr/save-options` | save options when the menus close | DOS; Windows: to do |
+| 2 (#78) | `pr/game-speed` | real game speed below 60 fps | DOS (86Box); Windows 11 |
+| 3 (#79) | `pr/save-options` | save options when the menus close | DOS; Windows 11 |
 | 4 | `pr/compact-build-list` | compact two-column build list, README and sample config | DOS; Windows: to do |
 | 5 | `pr/build-without-enet` | build with `WITH_ENET=OFF` | DOS; Windows with ENet off and on: to do |
 | 6 | not yet | the MS-DOS target | Needs 5, and upstream's view first |
