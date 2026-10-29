@@ -207,8 +207,11 @@ One bug or one feature per pull request. Each branch is based on
 upstream `master` (4469449c), holds only its own change, and builds for Windows x64 (cross-compiled; no new warnings).
 The branches are on the fork https://github.com/dafugg/dunedynasty.
 **Merged upstream on 2026-10-21 (merge commits, unchanged): #67 to #72**
-(CI 1 to 3, 1a, 1b, 1d); `dos-port` is rebased onto that master
-(2dc350fc). 1d links a screenshot on the fork's `pr-assets` branch. The
+(CI 1 to 3, 1a, 1b, 1d); then #73 (CI 4, Windows x86 from source,
+2026-10-24), #74 (drop `mingw-w64-i686-gdb`, which MSYS2 removed the day
+after #73; opened from another session, 2026-10-24) and #75 (skip
+"Delete Old Artifacts" on pull requests from forks, 2026-10-26).
+`dos-port` is rebased onto master after #74 (2e2a3cfb). 1d links a screenshot on the fork's `pr-assets` branch. The
 other branches are based on 4469449c and still apply.
 
 Every change is also in `dos-port`, so our builds have it before
@@ -233,7 +236,7 @@ edited one in favour of upstream's version.
 | 6 | not yet | the MS-DOS target | Needs 5, and upstream's view first |
 | CI 1 (#68, merged) | `pr/fix-windows-arm64` | Windows ARM64: link failure without Direct3D, and `SDL3.dll` missing from the package (two commits, stacked on CI 3) | Fork CI: Windows ARM64 green, artifact uploaded |
 | CI 2 (#69, merged) | `pr/fix-macos-arm64` | macOS ARM64: Homebrew library paths (stacked on CI 3) | Fork CI: macOS ARM64 green, including "Test executable"; artifact uploaded |
-| CI 4 (#73) | `pr/fix-windows-x86` | Windows x86: build the latest allegro, enet and libmad releases from source (libmad: Tenacity fork, `FPM_INTEL` forced); objdump DLL bundling; Windows 7 import check. Two commits on upstream master (2026-10-24) | Fork CI green; native MINGW32 build and in-game checks on Windows 11 x64 (sound, AdLib, skirmish, hosting, MP3). The earlier pinned-recipe version (backup branch `backup/pr-fix-windows-x86-pinned`) also ran on Windows 7 32-bit; the source build not yet |
+| CI 4 (#73, merged) | `pr/fix-windows-x86` | Windows x86: build the latest allegro, enet and libmad releases from source (libmad: Tenacity fork, `FPM_INTEL` forced); objdump DLL bundling; Windows 7 import check. Two commits on upstream master (2026-10-24) | Fork CI green; native MINGW32 build and in-game checks on Windows 11 x64 (sound, AdLib, skirmish, hosting, MP3). The earlier pinned-recipe version (backup branch `backup/pr-fix-windows-x86-pinned`) also ran on Windows 7 32-bit; the source build not yet |
 | CI 3 (#67, merged) | `pr/fix-ci-artifact-names` | artifact names with `/` | Fork CI: uploads from a slash branch. Open first: CI 1 and 2 are based on it, so their pull requests include its commit until it is merged (rebase them if it is squash-merged) |
 
 Upstream's own build with `WITH_ENET=OFF` fails to link (undefined
@@ -357,7 +360,7 @@ since at least November 2025 (logs expired).
 | Windows ARM64 does not link: `undefined symbol: al_get_d3d_device` | MSYS2's CLANGARM64 Allegro (5.2.11.1-3, built May 2026) has no Direct3D; the Direct3D code was guarded by `ALLEGRO_WINDOWS` | Fixed in `pr/fix-windows-arm64` (guard with `ALLEGRO_CFG_D3D`). Green on the fork's `windows-11-arm` runner (branch `arm64-test`, same commits; artifact `dunedynasty-arm64-test-windows-arm64`) |
 | Windows ARM64 package would not start | CLANGARM64 fluidsynth 2.6.1 needs `SDL3.dll`, missing from the hand-written DLL list | Fixed in `pr/fix-windows-arm64`. Not yet run on ARM hardware |
 | Runs on branches with `/` in the name, and all pull request runs (`<n>/merge`), fail at the upload | upload-artifact rejects `/` in artifact names | Fixed: `pr/fix-ci-artifact-names` (`ARTIFACT_REF` with `/` replaced by `-`); checked on the fork with a slash branch |
-| Windows x86: `target not found: mingw-w64-i686-allegro` (and enet, libmad) | MSYS2 removed `mingw32` from those recipes in June 2026 (msys2/MINGW-packages b13c6d3a, 1edc149b; policy: news 2023-12-13) | Fixed on `pr/fix-windows-x86`, opened as #73: `scripts/build-windows-x86-deps.sh` builds the newest release tag of each from source with CMake, unpinned (allegro from liballeg/allegro5, enet from lsalzman/enet, static; libmad from codeberg.org/tenacityteam/libmad, which carries MSYS2's two libmad code fixes); cache keyed on the resolved versions. libmad's CMake sees the host's `AMD64` and would use generic maths, so the script forces `FPM_INTEL` and checks `mad.h`; fix proposed as tenacityteam/libmad#41 (remove the override once released). DLLs bundled by following imports with objdump; Windows 7 import check step |
+| Windows x86: `target not found: mingw-w64-i686-allegro` (and enet, libmad) | MSYS2 removed `mingw32` from those recipes in June 2026 (msys2/MINGW-packages b13c6d3a, 1edc149b; policy: news 2023-12-13) | Fixed on `pr/fix-windows-x86`, opened as #73: `scripts/build-windows-x86-deps.sh` builds the newest release tag of each from source with CMake, unpinned (allegro from liballeg/allegro5, enet from lsalzman/enet, static; libmad from codeberg.org/tenacityteam/libmad, which carries MSYS2's two libmad code fixes); cache keyed on the resolved versions. libmad's CMake sees the host's `AMD64` and would use generic maths, so the script forces `FPM_INTEL` and checks `mad.h`; a fix for libmad's detection was declined (https://codeberg.org/tenacityteam/libmad/pulls/41, closed 2026-10-26 under Tenacity's no-AI-contributions policy), so the override and its check stay until a libmad release detects 32-bit x86 on a 64-bit Windows host itself. DLLs bundled by following imports with objdump; Windows 7 import check step |
 | macOS ARM64 (`macos-14`): `ld: library 'fluidsynth' not found`, empty `/lib` search paths | `build-macos-bundle.sh` took each library's path from `brew info ... \| grep Cellar`, which came out empty, so `LIBRARY_PATH` was `/lib:/lib:/lib`; Intel Homebrew's `/usr/local/lib` is searched anyway, Apple Silicon's `/opt/homebrew/lib` is not | Fix in `pr/fix-macos-arm64` (`brew --prefix <formula>`) |
 
 **Windows 7.** The v1.6.4 x86 release uses `msvcrt.dll` (no Universal C
