@@ -14,7 +14,7 @@ Keep this up to date as things are found or fixed.
 | `Audio_ScanMusic` resets `count` and `count_default` but not `count_found`, so a second scan would double-count. Latent: only scanned once today. | `src/audio/audio.c` `Audio_ScanMusic` | Reset `count_found` too. | Merged (#70) |
 | `AdLibDriver::callback` returns early on an unknown opcode without calling `unlock()`. Harmless where lock/unlock are no-ops (desktop); deadlocks or leaves interrupts off where they are real. | `src/audio/adl/sound_adlib.cpp` | `unlock()` before the early return. | Merged (#71) |
 
-| **F10 FPS counter invisible in game on the desktop build.** `VideoA5_Tick` drew it at (2, 40) in whatever transform was used last; in game that is the sidebar or menubar, so it only showed in menus and the mentat. Reported on Windows. | `src/video/video_a5.c` `VideoA5_Tick` | Draw in `SCREENDIV_MAIN`, as the software cursor just below does. Only on the PR branch (the DOS build has its own overlay). | Branch `pr/fix-fps-counter-in-game` |
+| **F10 FPS counter changes size.** `VideoA5_Tick` draws it at (2, 40) in whatever transform was used last: in game that is unscaled, so on a large screen the counter is tiny (but visible); with a menu open it uses the menu's scaled transform and becomes large. Seen on Windows (2026-10-28 retest), and in Linux builds at 640x480 and 1280x800. | `src/video/video_a5.c` `VideoA5_Tick` | Not fixed. The first fix (draw in `SCREENDIV_MAIN`) made it tiny everywhere, the wrong way round, so it was dropped on 2026-10-28; a fix would have to pick one readable size (menu scaling, or `menubar_scale` below the menubar). Screenshots: share `fps-counter/`. | Dropped (branch deleted; local backup `backup/fork-pr-fix-fps-counter-in-game`) |
 | **Team labels cut off in the lobby.** `ScrollListArea_Draw` clipped "T1".."T6" to `teamWidth` (10 px), narrower than the centred text, so 2, 3, 5 and 6 lost their right edge. Reported on DOS; the code is shared. | `src/newui/scrollbar.c` | Clip to the inside of the label's box. | Merged (#72) |
 | **Game slows down with the frame rate.** `GameLoop_ProcessGameTimer` jumped game time to the timer, so ticks between slow frames were lost (46% speed at 27 fps on a 486). Also, the loop drew only when the timer queue was empty, so a machine too slow for the game speed never drew. | `src/gameloop.c` | One step per tick, catching up on queued ticks, skipping ahead past 8 behind; draw at least every 6 ticks. Above 60 fps nothing changes. | Branch `pr/game-speed` |
 
@@ -152,7 +152,7 @@ to upstream's code.
 
 Line counts are approximate (added plus removed).
 
-**1. Bug fixes** (independent of DOS; one pull request each, 1a-1c)
+**1. Bug fixes** (independent of DOS; one pull request each, 1a-1d; 1c dropped)
 
 | File | Change | Why | Without it |
 |---|---|---|---|
@@ -227,7 +227,7 @@ edited one in favour of upstream's version.
 |---|---|---|---|
 | 1a (#70, merged) | `pr/fix-jukebox-crash` | jukebox crash without external music packs | DOS; Windows: to do |
 | 1b (#71, merged) | `pr/fix-adlib-unlock` | AdLib driver lock left held on an unknown opcode | DOS; nothing visible on Windows |
-| 1c | `pr/fix-fps-counter-in-game` | existing F10 FPS counter not visible in game | Windows: to do |
+| 1c | (dropped) | F10 FPS counter size | Linux before/after screenshots showed the fix only shrank the counter in menus; dropped 2026-10-28 |
 | 1d (#72, merged) | `pr/fix-team-label-clipping` | team labels cut off in the lobby | DOS (86Box); Windows 11 (screenshots in #72) |
 | 2 | `pr/game-speed` | real game speed below 60 fps | DOS (86Box); Windows: to do |
 | 3 | `pr/save-options` | save options when the menus close | DOS; Windows: to do |
@@ -268,14 +268,7 @@ leave `CHANGES.txt` alone; each description below suggests a line.
 > `unlock()`. No effect while `lock()`/`unlock()` are no-ops, as on the
 > desktop; a hang on any platform where they are real.
 
-**1c. fix: F10 FPS counter not visible in game**
-
-> The existing FPS counter (F10) is drawn in whichever transform was
-> last used: in game, the sidebar or menubar, so it is off to the side
-> or clipped and only shows in menus. It now uses `SCREENDIV_MAIN`, as
-> the software cursor just below does.
->
-> Suggested CHANGES.txt: "Show the FPS counter (F10) in game."
+**1c.** Dropped (see the bug table): the counter was visible in game, only tiny.
 
 **1d. fix: team labels cut off in the skirmish and multiplayer lobby**
 
