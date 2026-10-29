@@ -232,7 +232,7 @@ edited one in favour of upstream's version.
 | 1d (#72, merged) | `pr/fix-team-label-clipping` | team labels cut off in the lobby | DOS (86Box); Windows 11 (screenshots in #72) |
 | 2 (#78) | `pr/game-speed` | real game speed below 60 fps | DOS (86Box); Windows 11 |
 | 3 (#79) | `pr/save-options` | save options when the menus close | DOS; Windows 11 |
-| 4 | `pr/compact-build-list` | compact two-column build list, README and sample config | DOS; Windows: to do |
+| 4 (#82) | `pr/compact-build-list` | compact two-column build list, README and sample config | DOS; Windows 11 (screenshots in #82) |
 | 5 (#80) | `pr/build-without-enet` | build with `WITH_ENET=OFF` | DOS; Windows 11 with ENet off and on |
 | 6 | not yet | the MS-DOS target | Needs 5, and upstream's view first |
 | CI 1 (#68, merged) | `pr/fix-windows-arm64` | Windows ARM64: link failure without Direct3D, and `SDL3.dll` missing from the package (two commits, stacked on CI 3) | Fork CI: Windows ARM64 green, artifact uploaded |
