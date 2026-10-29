@@ -244,6 +244,16 @@ when first played (up to 1.5 MB).
 - Missing cursor with mouse drivers other than CuteMouse (needs a
   `DUNEDYN.LOG` from that setup).
 
+### Game data
+- US v1.07 data: done in `dos-port` and opened upstream as #81
+  (`pr/us-voice-files`). Six English voices are named without the `Z`
+  prefix in the US VOC.PAK; the file table gets the US names and the
+  loader falls back to them. Research:
+  `fiobt/claude/research/dune2-us-vs-eu.md`. Our 86Box rig's data is the
+  US release (same as the `DUNE2.DX` install), so sound findings made
+  before this change ran without unit voices; recheck the voice and
+  mixer measurements.
+
 ### Sound
 - Popping in some sound effects: research. Someone reportedly found
   the cause, and Nyerguds' Dune II patch includes a sound fix that may
